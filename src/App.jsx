@@ -1,0 +1,216 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Icon from './components/Icon.jsx'
+import AuthScreen from './screens/AuthScreen.jsx'
+import AdminScreen from './screens/AdminScreen.jsx'
+import CoinsScreen from './screens/CoinsScreen.jsx'
+import GroupsScreen from './screens/GroupsScreen.jsx'
+import HomeScreen from './screens/HomeScreen.jsx'
+import PaperDetailScreen from './screens/PaperDetailScreen.jsx'
+import NotificationsScreen from './screens/NotificationsScreen.jsx'
+import ProfileScreen from './screens/ProfileScreen.jsx'
+import PapersScreen from './screens/PapersScreen.jsx'
+import SavedScreen from './screens/SavedScreen.jsx'
+import { clearSession, restoreSession, saveSession, signOut as signOutApi } from './services/authApi.js'
+import { listPapers, listSavedPaperIds, setPaperSaved, fetchUserProfile } from './services/studyRepository.js'
+import './styles/layout.css'
+import './styles/screens.css'
+
+const navItems = [
+  { label: 'Home', icon: 'home' },
+  { label: 'Papers', icon: 'file' },
+  { label: 'Saved', icon: 'bookmark' },
+  { label: 'Coins', icon: 'coins' },
+  { label: 'Study groups', icon: 'users' },
+]
+
+function App() {
+  const [activeTab, setActiveTab] = useState('Home')
+  const [query, setQuery] = useState('')
+  const [notice, setNotice] = useState('')
+  const noticeTimer = useRef(null)
+  const [savedIds, setSavedIds] = useState([])
+  const [papers, setPapers] = useState([])
+  const [papersLoading, setPapersLoading] = useState(true)
+  const [savedLoading, setSavedLoading] = useState(true)
+  const [profile, setProfile] = useState(null)
+  const [selectedPaper, setSelectedPaper] = useState(null)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [session, setSession] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const coinBalance = Number(profile?.coinBalance || 0)
+
+  const showNotice = useCallback((text) => {
+    setNotice(text)
+    window.clearTimeout(noticeTimer.current)
+    noticeTimer.current = window.setTimeout(() => setNotice(''), 8000)
+  }, [])
+
+  useEffect(() => {
+    restoreSession().then((restored) => {
+      if (restored?.authProvider === 'php-mysql') {
+        setProfile(restored.profile || null)
+        setPapers([])
+        setSavedIds([])
+        setPapersLoading(false)
+        setSavedLoading(false)
+      }
+      setSession(restored)
+    }).finally(() => setAuthLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (!session) return undefined
+    if (session.authProvider === 'php-mysql') return undefined
+    let active = true
+    Promise.allSettled([
+      listPapers(session.idToken),
+      listSavedPaperIds(session.idToken, session.userId),
+      fetchUserProfile(session.idToken, session.userId),
+    ]).then(([paperResult, savedResult, profileResult]) => {
+      if (!active) return
+      if (paperResult.status === 'fulfilled') setPapers(paperResult.value)
+      else showNotice(paperResult.reason?.message || 'Could not load papers from Firestore.')
+      if (savedResult.status === 'fulfilled') setSavedIds(savedResult.value)
+      else showNotice(savedResult.reason?.message || 'Could not load saved papers.')
+      if (profileResult.status === 'fulfilled') setProfile(profileResult.value)
+    }).finally(() => {
+      if (active) {
+        setPapersLoading(false)
+        setSavedLoading(false)
+      }
+    })
+    return () => { active = false }
+  }, [session, showNotice])
+
+  const filteredPapers = useMemo(() => papers.filter((paper) => {
+    const searchText = `${paper.subject} ${paper.title} ${paper.detail}`.toLowerCase()
+    return searchText.includes(query.toLowerCase())
+  }), [papers, query])
+
+  const toggleSaved = (id) => {
+    const currentlySaved = savedIds.includes(id)
+    setSavedIds((current) => currentlySaved
+      ? current.filter((savedId) => savedId !== id)
+      : [...current, id])
+    setPaperSaved(session.idToken, session.userId, id, !currentlySaved)
+      .catch((error) => {
+        setSavedIds((current) => currentlySaved ? [...current, id] : current.filter((savedId) => savedId !== id))
+        showNotice(error.message || 'Could not update saved papers.')
+      })
+  }
+
+  const navigate = (tab) => {
+    setActiveTab(tab)
+    setSelectedPaper(null)
+  }
+
+  const openPaper = (paper) => setSelectedPaper(paper)
+
+  const signOut = async () => {
+    await signOutApi(session)
+    clearSession()
+    setSession(null)
+    setSelectedPaper(null)
+    setActiveTab('Home')
+    setProfile(null)
+    setPapers([])
+    setSavedIds([])
+  }
+
+  if (authLoading) return <div className="auth-loading" role="status">Loading your study space…</div>
+
+  if (!session) {
+    return <>
+      <AuthScreen onAuthenticated={(userSession) => { saveSession(userSession); setProfile(userSession.profile); setPapers([]); setSavedIds([]); setPapersLoading(false); setSavedLoading(false); setSession(userSession) }} showNotice={showNotice} />
+      {notice && <div className="toast auth-toast" role="status">{notice}</div>}
+    </>
+  }
+
+  const renderScreen = () => {
+    if (selectedPaper) {
+      return <PaperDetailScreen
+        paper={selectedPaper}
+        activeTab={activeTab}
+        balance={coinBalance}
+        onBack={() => setSelectedPaper(null)}
+        showNotice={showNotice}
+      />
+    }
+
+    const sharedPaperProps = {
+      papers: filteredPapers,
+      savedIds,
+      onToggleSaved: toggleSaved,
+      onOpenPaper: openPaper,
+    }
+
+    switch (activeTab) {
+      case 'Papers':
+        return <PapersScreen {...sharedPaperProps} query={query} setQuery={setQuery} showNotice={showNotice} loading={papersLoading} />
+      case 'Saved':
+        return <SavedScreen papers={papers} savedIds={savedIds} loading={savedLoading || papersLoading} onToggleSaved={toggleSaved} onOpenPaper={openPaper} onBrowse={() => navigate('Papers')} />
+      case 'Coins':
+        return <CoinsScreen profile={profile} balance={coinBalance} freeBalance={Number(profile?.freeCoinBalance || 0)} session={session} onProfileChange={setProfile} showNotice={showNotice} />
+      case 'Study groups':
+        return <GroupsScreen session={session} profile={profile} showNotice={showNotice} />
+      case 'Notifications':
+        return <NotificationsScreen session={session} onUnreadCount={setUnreadNotifications} showNotice={showNotice} />
+      case 'Profile':
+        return <ProfileScreen session={session} profile={profile} onProfileChange={setProfile} onSignOut={signOut} onOpenAdmin={() => navigate('Admin')} showNotice={showNotice} />
+      case 'Admin':
+        return <AdminScreen session={session} profile={profile} onBack={() => navigate('Profile')} showNotice={showNotice} />
+      default:
+        return <HomeScreen
+          query={query}
+          setQuery={setQuery}
+          papers={filteredPapers}
+          loading={papersLoading}
+          onNavigate={navigate}
+          onOpenPaper={openPaper}
+          savedIds={savedIds}
+          onToggleSaved={toggleSaved}
+        />
+    }
+  }
+
+  const navigation = (className) => (
+    <nav className={className} aria-label="Main navigation">
+      {navItems.map((item) => (
+        <button key={item.label} className={activeTab === item.label ? 'selected' : ''} onClick={() => navigate(item.label)}>
+          <Icon name={item.icon} size={18} />
+          <span>{item.label === 'Study groups' && className === 'mobile-nav' ? 'Groups' : item.label}</span>
+          {item.label === 'Saved' && savedIds.length > 0 && className === 'side-nav' && <span className="nav-count">{savedIds.length}</span>}
+        </button>
+      ))}
+    </nav>
+  )
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <a className="brand" href="#home" onClick={() => navigate('Home')}>
+          <img src="/logo.png" alt="" />
+          <span><strong>Last Minute</strong><small>EXAM PAPER LIBRARY</small></span>
+        </a>
+        <div className="nav-label">STUDY SPACE</div>
+        {navigation('side-nav')}
+        <div className="sidebar-bottom">
+          <div className="help-card"><div className="help-icon"><Icon name="spark" size={17} /></div><strong>Keep your momentum</strong><p>A little practice each day adds up.</p><button onClick={() => showNotice('Your study streak starts today!')}>View study tips <Icon name="arrow" size={12} /></button></div>
+          <button className="profile-row" onClick={() => navigate('Profile')}><span className="avatar">{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</span><span><strong>{profile?.username || session.name || session.email || 'Student account'}</strong><small>View profile</small></span><span className="more"><Icon name="more" size={18} /></span></button>
+        </div>
+      </aside>
+
+      <main className="main-area" id="home">
+        <header className="topbar">
+          <div className="breadcrumb">Study space <span>/</span> <strong>{selectedPaper ? 'Paper details' : activeTab}</strong></div>
+          <div className="top-actions"><button className="icon-button" aria-label="Notifications" onClick={() => navigate('Notifications')}><Icon name="bell" size={18} />{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><button className="top-avatar" aria-label="Open profile" onClick={() => navigate('Profile')}>{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</button></div>
+        </header>
+        <div className="page-content">{renderScreen()}</div>
+      </main>
+      {navigation('mobile-nav')}
+      {notice && <div className="toast" role="status">{notice}</div>}
+    </div>
+  )
+}
+
+export default App

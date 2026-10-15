@@ -1,0 +1,196 @@
+/* Readable type sizes and fluid spacing shared by every screen. */
+@media (min-width: 701px) {
+  .sidebar { width: 270px; padding: 34px 20px 20px; }
+  .main-area { margin-left: 270px; }
+  .page-content { max-width: 1320px; padding: 42px clamp(36px, 4vw, 64px) 30px; }
+  .topbar { height: 82px; padding-inline: max(calc((100vw - 1320px)/2), 44px); }
+  .brand img { width: 43px; height: 43px; }
+  .brand strong { font-size: 18px; }
+  .brand small { font-size: 9px; }
+  .side-nav button { height: 48px; font-size: 14px; }
+  .nav-label { font-size: 10px; }
+  .help-card strong,.profile-row strong { font-size: 13px; }
+  .help-card p,.profile-row small { font-size: 11px; }
+  .help-card button { font-size: 11px; }
+}
+
+.breadcrumb { font-size: 13px; }
+.welcome-row h1 { font-size: clamp(32px, 2.5vw, 40px); }
+.welcome-row p { font-size: 15px; }
+.eyebrow { font-size: 10px; }
+.date-chip { font-size: 12px; padding: 10px 15px; }
+.search-wrap { min-height: 58px; }
+.search-wrap input { font-size: 14px; }
+.search-wrap kbd { font-size: 11px; }
+.shortcut { height: 82px; padding-inline: 16px; }
+.shortcut-icon { width: 44px; height: 44px; }
+.shortcut-copy strong { font-size: 13px; }
+.shortcut-copy small { font-size: 11px; }
+.feature-banner { min-height: 238px; }
+.banner-label { font-size: 9px; }
+.banner-content h2 { font-size: 29px; }
+.banner-content p { font-size: 12px; }
+.banner-content button { height: 36px; font-size: 11px; }
+.section-kicker { font-size: 9px; }
+.section-heading h2,.groups-subhead h2 { font-size: 20px; }
+.text-link { font-size: 12px; }
+.subject-card { height: 116px; padding: 15px; }
+.subject-name { font-size: 12px; }
+.subject-count { font-size: 10px; }
+.paper-row { min-height: 76px; padding: 11px 15px; }
+.paper-subject { font-size: 8px; }
+.paper-info strong { font-size: 12px; }
+.paper-info small { font-size: 10px; }
+.paper-lock { font-size: 12px; }
+.paper-lock b { font-size: 10px; }
+.saved-link,.saved-link span { font-size: 12px; }
+footer { font-size: 11px; }
+.screen-heading h1,.paper-detail-screen h1 { font-size: clamp(31px, 2.3vw, 38px); }
+.screen-heading p,.paper-detail-screen>p { font-size: 15px; }
+.library-count { font-size: 12px; }
+.filter-chips button { font-size: 11px; padding: 9px 13px; }
+.results-heading,.results-heading button { font-size: 12px; }
+.empty-panel h3 { font-size: 18px; }
+.empty-panel p { font-size: 13px; }
+.primary-button { font-size: 12px; padding: 12px 16px; }
+.balance-caption { font-size: 10px; }
+.balance-total { font-size: 42px; }
+.balance-total span { font-size: 15px; }
+.balance-card p { font-size: 12px; }
+.coin-pack { min-height: 200px; }
+.pack-tag { font-size: 8px; }
+.coin-pack>strong { font-size: 27px; }
+.coin-pack>small { font-size: 11px; }
+.coin-pack>button { font-size: 11px; padding: 10px 7px; }
+.info-callout { font-size: 12px; }
+.coin-note { color: #7e8395; font-size: 12px; margin: -5px 0 14px; }
+.transaction-section { margin-top: 28px; }
+.transaction-list { display: grid; gap: 8px; }
+.transaction-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #e9ebf1; border-radius: 12px; background: #fff; }
+.transaction-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; color: #c28a22; background: #fff4df; }
+.transaction-info { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.transaction-info strong { color: #34384b; font-size: 12px; }
+.transaction-info small { color: #8b90a1; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.transaction-status { border-radius: 20px; padding: 5px 8px; color: #96721d; background: #fff4dc; font-size: 9px; font-weight: 700; }
+.transaction-status.paid { color: #25865e; background: #e7f5ed; }
+.transaction-status.failed { color: #b74a43; background: #fff0ef; }
+.transaction-date { color: #969aaa; font-size: 9px; white-space: nowrap; }
+.transaction-empty { min-height: 180px; }
+.transaction-error { padding: 12px; border: 1px solid #f0d4d2; border-radius: 10px; color: #a44b45; font-size: 11px; }
+.transaction-error button { margin-left: 12px; border: 0; background: transparent; color: #6256ce; font-weight: 700; }
+.content-loader { display: flex; justify-content: center; align-items: center; gap: 10px; min-height: 90px; color: #83889a; font-size: 12px; }
+.content-loader .notification-spinner { width: 20px; height: 20px; border-width: 2px; }
+.groups-hero h2 { font-size: 23px; }
+.groups-hero p { font-size: 12px; }
+.group-info .section-kicker { font-size: 8px; }
+.group-info>strong { font-size: 12px; }
+.group-info>small { font-size: 10px; }
+.join-button { font-size: 10px; padding: 9px 11px; }
+.back-link { font-size: 12px; }
+.detail-document h2 { font-size: 21px; }
+.detail-document>p,.question-preview { font-size: 12px; }
+.question-preview>i { font-size: 11px; }
+
+.auth-page { padding: 28px clamp(28px, 6vw, 88px) 20px; }
+.auth-brand img { width: 45px; height: 45px; }
+.auth-brand strong { font-size: 18px; }
+.auth-brand small { font-size: 9px; }
+.auth-layout { max-width: 1160px; grid-template-columns: minmax(320px, 1fr) minmax(410px, 500px); }
+.auth-promo>p { font-size: 15px; }
+.promo-footnote { font-size: 12px; }
+.auth-card { padding: 34px; }
+.auth-mode-switch button { font-size: 12px; height: 38px; }
+.auth-card>.auth-eyebrow,.promo-overline { font-size: 10px; }
+.auth-card>h2 { font-size: 27px; }
+.auth-description { font-size: 13px; }
+.auth-form>label,.verify-card form>label { font-size: 11px; }
+.auth-input { height: 48px; }
+.auth-input>input,.verify-card input { font-size: 13px; }
+.country-code { font-size: 12px; }
+.show-password,.forgot-link { font-size: 10px; }
+.auth-primary { height: 49px; font-size: 12px; }
+.auth-secondary { height: 47px; font-size: 11px; }
+.auth-divider { font-size: 9px; }
+.auth-switch-copy,.auth-switch-copy button,.auth-text-button { font-size: 11px; }
+.auth-terms { font-size: 9px; }
+.verify-card>h1 { font-size: 29px; }
+.verify-card>p { font-size: 13px; }
+.auth-config-note { font-size: 11px; }
+
+@media (max-width: 1050px) and (min-width: 701px) {
+  .sidebar { width: 230px; }
+  .main-area { margin-left: 230px; }
+  .page-content { padding-inline: 28px; }
+  .topbar { padding-inline: 28px; }
+  .subject-name { font-size: 11px; }
+  .auth-layout { grid-template-columns: minmax(240px, 1fr) minmax(380px, 460px); gap: 32px; }
+}
+
+@media (max-width: 700px) {
+  .page-content { padding: 25px 20px 20px; }
+  .topbar { height: 64px; }
+  .welcome-row h1 { font-size: 29px; }
+  .welcome-row p { font-size: 13px; }
+  .search-wrap { min-height: 52px; }
+  .search-wrap input { font-size: 13px; }
+  .shortcut { height: 72px; }
+  .shortcut-copy strong { font-size: 12px; }
+  .shortcut-copy small { font-size: 10px; }
+  .feature-banner { min-height: 205px; }
+  .banner-content h2 { font-size: 24px; }
+  .banner-content p { font-size: 11px; }
+  .section-heading h2,.groups-subhead h2 { font-size: 18px; }
+  .section-kicker { font-size: 8px; }
+  .subject-grid .subject-card:last-child { display: flex; }
+  .subject-card { height: 104px; }
+  .subject-name { font-size: 11px; }
+  .subject-count { font-size: 9px; }
+  .paper-row { min-height: 70px; }
+  .paper-info strong { font-size: 11px; }
+  .paper-info small { font-size: 9px; }
+  .paper-subject { font-size: 8px; }
+  .screen-heading h1,.paper-detail-screen h1 { font-size: 29px; }
+  .screen-heading p,.paper-detail-screen>p { font-size: 13px; }
+  .library-count { font-size: 10px; }
+  .coin-packs { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .coin-pack:last-child { grid-column: 1 / -1; }
+  .coin-pack>button { font-size: 10px; }
+  .balance-total { font-size: 36px; }
+  .groups-hero h2 { font-size: 17px; }
+  .groups-hero p { font-size: 10px; }
+  .group-info>strong { font-size: 10px; }
+  .join-button { font-size: 9px; }
+  .info-callout { font-size: 10px; }
+  .transaction-row { gap: 8px; padding: 10px; }
+  .transaction-icon { width: 32px; height: 32px; }
+  .transaction-info strong { font-size: 10px; }
+  .transaction-info small,.transaction-date { font-size: 8px; }
+  .transaction-status { font-size: 8px; padding: 4px 6px; }
+  .auth-page { padding: 18px 18px 16px; }
+  .auth-layout { margin-block: 27px; }
+  .auth-card { padding: 27px 23px; }
+  .auth-card>h2 { font-size: 25px; }
+  .auth-description { font-size: 12px; }
+  .auth-form>label { font-size: 11px; }
+  .auth-input { height: 47px; }
+  .auth-input>input { font-size: 13px; }
+  .auth-primary { height: 48px; font-size: 12px; }
+  .auth-secondary { height: 46px; font-size: 11px; }
+  .auth-switch-copy,.auth-switch-copy button { font-size: 11px; }
+  .auth-terms { font-size: 9px; }
+}
+
+@media (max-width: 390px) {
+  .page-content { padding-inline: 15px; }
+  .welcome-row h1 { font-size: 26px; }
+  .shortcut { padding-inline: 9px; }
+  .shortcut-copy small { font-size: 9px; }
+  .text-link { font-size: 10px; }
+  .screen-heading { gap: 8px; }
+  .screen-heading h1 { font-size: 26px; }
+  .screen-heading p { font-size: 11px; }
+  .library-count { padding: 7px; font-size: 8px; }
+  .group-card { gap: 6px; }
+  .join-button { padding: 7px; font-size: 8px; }
+  .auth-card { padding: 23px 17px; }
+}
