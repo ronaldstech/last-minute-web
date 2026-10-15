@@ -56,6 +56,22 @@ CREATE TABLE IF NOT EXISTS academic_programmes (
   CONSTRAINT academic_programmes_department_fk FOREIGN KEY (parent_id) REFERENCES academic_departments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS papers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  title VARCHAR(240) NOT NULL,
+  course VARCHAR(160) NOT NULL DEFAULT '',
+  year VARCHAR(40) NOT NULL DEFAULT '',
+  semester VARCHAR(40) NOT NULL DEFAULT '',
+  questions JSON NOT NULL,
+  question_count INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY papers_title (title),
+  KEY papers_course (course),
+  KEY papers_year (year)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS user_sessions (
   token_hash CHAR(64) NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,

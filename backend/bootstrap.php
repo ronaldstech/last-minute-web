@@ -6,6 +6,7 @@ use LastMinute\Controllers\AuthController;
 use LastMinute\Controllers\AdminUserController;
 use LastMinute\Controllers\AdminAcademicController;
 use LastMinute\Controllers\ProfileController;
+use LastMinute\Controllers\AdminPaperController;
 use LastMinute\Http\Request;
 use LastMinute\Middleware\Authenticate;
 use LastMinute\Repositories\SessionRepository;
@@ -34,6 +35,7 @@ function last_minute_router(): Router
     $adminUsers = new AdminUserController(new \LastMinute\Repositories\AdminUserRepository($pdo), $authenticate);
     $adminAcademics = new AdminAcademicController(new \LastMinute\Repositories\AcademicStructureRepository($pdo), $authenticate);
     $profile = new ProfileController(new \LastMinute\Repositories\ProfileRepository($pdo), $authenticate);
+    $adminPapers = new AdminPaperController(new \LastMinute\Repositories\AdminPaperRepository($pdo), $authenticate);
     $router = new Router();
     $router->add('POST', '/auth/register', [$controller, 'register']);
     $router->add('POST', '/auth/login', [$controller, 'login']);
@@ -44,6 +46,10 @@ function last_minute_router(): Router
     $router->add('POST', '/admin/users/gift', [$adminUsers, 'gift']);
     $router->add('GET', '/admin/academics', [$adminAcademics, 'index']);
     $router->add('POST', '/admin/academics', [$adminAcademics, 'create']);
+    $router->add('GET', '/admin/papers', [$adminPapers, 'index']);
+    $router->add('POST', '/admin/papers', [$adminPapers, 'create']);
+    $router->add('PATCH', '/admin/papers', [$adminPapers, 'update']);
+    $router->add('DELETE', '/admin/papers', [$adminPapers, 'delete']);
     $router->add('PATCH', '/profile', [$profile, 'update']);
     $router->add('GET', '/academics', [$adminAcademics, 'catalog']);
     return $router;
@@ -59,7 +65,7 @@ function run_last_minute_api(): never
         header("Access-Control-Allow-Origin: {$origin}");
         header('Vary: Origin');
         header('Access-Control-Allow-Headers: Authorization, Content-Type');
-        header('Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS');
+        header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
     }
     if ($request->method === 'OPTIONS') {
         http_response_code(204);
