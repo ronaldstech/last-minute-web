@@ -3,7 +3,8 @@ import Icon from '../components/Icon.jsx'
 import ScreenHeader from '../components/ScreenHeader.jsx'
 import PaperReviewEditor from '../components/admin/PaperReviewEditor.jsx'
 import { giftAdminUserCoins, listAdminUsers, updateAdminUser } from '../services/adminUsers.js'
-import { countCollection, deleteDocument, getDocument, getOptionalDocument, listCollectionPage, queryCollectionGroupPage, patchDocument, setDocument, commitWrites, documentName, encodeFields } from '../services/firestore.js'
+import { createAcademicRecord, listAcademicRecords } from '../services/adminAcademics.js'
+import { countCollection, deleteDocument, getDocument, getOptionalDocument, listCollectionPage, queryCollectionGroupPage, patchDocument, setDocument } from '../services/firestore.js'
 import { importPaperFile } from '../services/paperImport.js'
 import './AdminScreen.css'
 
@@ -12,8 +13,16 @@ const sections = [
   ['academics', 'Academic structure', 'book'], ['practice', 'Practice analytics', 'spark'],
   ['discussions', 'Group discussions', 'messages'], ['reports', 'Paper reports', 'bell'], ['settings', 'App configuration', 'sliders'],
 ]
+const ADMIN_SECTION_KEY = 'last-minute-admin-section'
 
-async function loadAdminData(section, token, pageToken = '', search = '') {
+function readAdminSection() {
+  try {
+    const saved = localStorage.getItem(ADMIN_SECTION_KEY)
+    return sections.some(([id]) => id === saved) ? saved : 'dashboard'
+  } catch { return 'dashboard' }
+}
+
+async function loadAdminData(section, token, pageToken = '', search = '', phpSession = false) {
   switch (section) {
     case 'dashboard': {
       const [users, papers, groups] = await Promise.all([
@@ -25,7 +34,7 @@ async function loadAdminData(section, token, pageToken = '', search = '') {
     // Older papers may not have updatedAt. Ordering by it silently omits those
     // documents from Firestore results, so use the document-name order here.
     case 'papers': return listCollectionPage(token, 'papers', { pageSize: 40, pageToken, fields: ['title', 'course', 'year', 'semester', 'updatedAt', 'questionCount'] })
-    case 'academics': return listCollectionPage(token, 'colleges', { pageSize: 40, pageToken, fields: ['name'] })
+    case 'academics': return phpSession ? { documents: await listAcademicRecords(token, 'colleges'), nextPageToken: '' } : listCollectionPage(token, 'colleges', { pageSize: 40, pageToken, fields: ['name'] })
     case 'practice': {
       const [usage, unlocks] = await Promise.all([
         listCollectionPage(token, 'practiceMarkingUsage', { orderBy: 'submittedAt', descending: true, pageSize: 25, fields: ['paperTitle', 'answerCount', 'coinsCharged', 'status', 'submittedAt'] }),
@@ -88,7 +97,7 @@ function Stat({ label, value, icon, tone = 'mint' }) {
 }
 
 export default function AdminScreen({ session, profile, onBack, showNotice }) {
-  const [section, setSection] = useState('dashboard')
+  const [section, setSection] = useState(readAdminSection)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -109,6 +118,10 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
   const importInputRef = useRef(null)
   const isAdmin = profile?.isAdmin === true || String(profile?.role || '').toLowerCase() === 'admin'
 
+  useEffect(() => {
+    try { localStorage.setItem(ADMIN_SECTION_KEY, section) } catch { /* Keep the screen usable without storage. */ }
+  }, [section])
+
   const refresh = useCallback(() => {
     sectionCache.current.delete(section)
     setLoading(true)
@@ -124,7 +137,8 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
     const cached = sectionCache.current.get(section)
     if (cached) return undefined
     let active = true
-    loadAdminData(section, section === 'users' ? session.token : session.idToken, '', section === 'users' ? search : '').then((result) => {
+    const token = session.authProvider === 'php-mysql' ? session.token : session.idToken
+    loadAdminData(section, token, '', section === 'users' ? search : '', session.authProvider === 'php-mysql').then((result) => {
       const paged = result && Array.isArray(result.documents)
       const resultData = paged ? result.documents : result
       const cursor = paged ? result.nextPageToken : ''
@@ -138,7 +152,7 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
       if (active) setError(loadError.message || 'Could not load this admin section.')
     }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [section, session.idToken, reload, isAdmin])
+  }, [section, session.authProvider, session.idToken, session.token, search, reload, isAdmin])
 
   const loadMore = async () => {
     if (!nextPageToken || loadingMore) return
@@ -171,7 +185,9 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
     if (academicChildren[key]) return
     setLoadingNode(key)
     try {
-      const page = await listCollectionPage(session.idToken, path, { pageSize: 50, fields })
+      const page = session.authProvider === 'php-mysql'
+        ? { documents: await listAcademicRecords(session.token, kind, id) }
+        : await listCollectionPage(session.idToken, path, { pageSize: 50, fields })
       setAcademicChildren((current) => ({ ...current, [key]: page.documents }))
     } catch (loadError) { showNotice(loadError.message || 'Could not load academic records.') }
     finally { setLoadingNode('') }
@@ -213,12 +229,22 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
     act(async () => { const updated = await updateAdminUser(session.token, user.id, payload); updateLoadedRow(user.id, updated) }, success)
   }
 
-  const addAcademicNode = (path, promptLabel, withCode = false) => {
+  const addAcademicNode = (type, parentId, promptLabel, withCode = false, firestorePath = '') => {
     const name = window.prompt(promptLabel)
     if (!name?.trim()) return
     const code = withCode ? window.prompt('Short code (optional):') || '' : ''
-    const id = crypto.randomUUID().replaceAll('-', '')
-    act(() => setDocument(session.idToken, `${path}/${id}`, { name: name.trim(), ...(withCode ? { code: code.trim() } : {}), createdAt: new Date() }), `${promptLabel.replace(' name', '')} added.`)
+    act(async () => {
+      if (session.authProvider === 'php-mysql') {
+        const record = await createAcademicRecord(session.token, type, name.trim(), code.trim(), parentId)
+        const root = type === 'colleges'
+        const cacheKey = root ? 'academics' : `${type}:${parentId}`
+        setAcademicChildren((current) => root ? current : { ...current, [cacheKey]: [...(current[cacheKey] || []), record] })
+        if (root) updateLoadedRows((rows) => [...(Array.isArray(rows) ? rows : []), record])
+      } else {
+        const id = crypto.randomUUID().replaceAll('-', '')
+        await setDocument(session.idToken, `${firestorePath}/${id}`, { name: name.trim(), ...(withCode ? { code: code.trim() } : {}), createdAt: new Date() })
+      }
+    }, `${promptLabel.replace(' name', '')} added.`)
   }
 
   const openPaperReview = async (paper) => {
@@ -288,7 +314,7 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
         {section === 'dashboard' && <><div className="admin-section-title"><div><span className="section-kicker">OVERVIEW</span><h2>Platform at a glance</h2></div><button className="notification-refresh" onClick={refresh}><Icon name="clock" size={15} /> Refresh</button></div><div className="admin-stats-grid"><Stat label="Registered users" value={data?.users} icon="users"/><Stat label="Question papers" value={data?.papers} icon="file" tone="blue"/><Stat label="Study groups" value={data?.groups} icon="messages" tone="violet"/></div><div className="admin-welcome"><span className="admin-stat-icon mint"><Icon name="spark" size={18}/></span><div><strong>Welcome, {profile?.username || session.name || 'Administrator'}</strong><p>Dashboard totals use Firestore aggregate counts. Open a section to load only the records needed there.</p></div></div></>}
         {section === 'users' && <><div className="admin-section-title"><div><span className="section-kicker">ACCOUNT MANAGEMENT</span><h2>Users <span className="admin-count">{visibleUsers.length} loaded</span></h2></div><label className="admin-search"><Icon name="search" size={16}/><input placeholder="Search loaded users…" value={search} onChange={(event) => setSearch(event.target.value)}/></label></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>User</th><th>Phone</th><th>Coins</th><th>Status</th><th>Actions</th></tr></thead><tbody>{visibleUsers.map((user) => <tr key={user.id}><td><div className="admin-user-cell"><span>{(user.username || user.email || 'U').slice(0,1).toUpperCase()}</span><div><strong>{user.username || 'Student'}</strong><small>{user.email || user.id}</small></div></div></td><td>{user.phoneNumber || '—'}</td><td>{(Number(user.coinBalance)||0) + (Number(user.freeCoinBalance)||0)}</td><td><span className={`admin-badge ${user.isSuspended ? 'danger' : userIsAdmin(user) ? 'violet' : 'success'}`}>{user.isSuspended ? 'Suspended' : userIsAdmin(user) ? 'Admin' : 'Active'}</span></td><td><div className="admin-actions"><button onClick={() => giftCoins(user)}>Gift coins</button><button disabled={user.id === session.userId} onClick={() => toggleUserFlag(user, 'isAdmin', userIsAdmin(user) ? 'Admin access removed.' : 'Admin access granted.')}>{userIsAdmin(user) ? 'Remove admin' : 'Make admin'}</button><button className="danger-action" disabled={user.id === session.userId} onClick={() => toggleUserFlag(user, 'isSuspended', user.isSuspended ? 'Account restored.' : 'Account suspended.')}>{user.isSuspended ? 'Restore' : 'Suspend'}</button></div></td></tr>)}</tbody></table>{!visibleUsers.length && <div className="admin-empty">No users match that search.</div>}</div></>}
         {section === 'papers' && <><div className="admin-section-title"><div><span className="section-kicker">LIBRARY MANAGEMENT</span><h2>Papers <span className="admin-count">{data?.length || 0} loaded</span></h2></div><label className="admin-search"><Icon name="search" size={16}/><input placeholder="Search loaded papers…" value={search} onChange={(event) => setSearch(event.target.value)}/></label><input ref={importInputRef} className="admin-hidden-file" type="file" accept=".docx,.pdf,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/json" onChange={handlePaperImport}/><button className="admin-import-button" onClick={() => importInputRef.current?.click()}><Icon name="file" size={15}/> Import file</button><button className="primary-button" onClick={addPaper}><Icon name="plus" size={15}/> Add blank paper</button></div><div className="admin-card-list">{(data || []).filter((paper) => `${paper.title||''} ${paper.course||''} ${paper.year||''}`.toLowerCase().includes(search.toLowerCase())).map((paper) => <article className="admin-list-row" key={paper.id}><span className="admin-row-icon blue"><Icon name="file" size={18}/></span><div><strong>{paper.title || 'Untitled paper'}</strong><small>{[paper.course, paper.year, paper.semester, Number.isFinite(paper.questionCount) ? `${paper.questionCount} questions` : ''].filter(Boolean).join(' · ') || 'No exam details'}</small></div><button onClick={() => openPaperReview(paper)}>Review &amp; edit</button><button className="danger-action" onClick={() => { if (window.confirm(`Delete “${paper.title || 'Untitled paper'}” from the paper library?`)) act(() => deleteDocument(session.idToken, `papers/${paper.id}`), 'Paper deleted.') }}>Delete</button></article>)}{!data?.length && <div className="admin-empty">No papers have been loaded yet.</div>}{data?.length > 0 && !data.some((paper) => `${paper.title||''} ${paper.course||''} ${paper.year||''}`.toLowerCase().includes(search.toLowerCase())) && <div className="admin-empty">No papers match that search on this page. Load more papers or clear the search.</div>}</div></>}
-        {section === 'academics' && <><div className="admin-section-title"><div><span className="section-kicker">ACADEMIC DIRECTORY</span><h2>Academic structure</h2></div><button className="primary-button" onClick={() => addAcademicNode('colleges', 'College name')}><Icon name="plus" size={15}/> Add college</button></div><div className="admin-card-list">{(data || []).map((college) => { const schools = academicChildren[`schools:${college.id}`] || []; return <article className="admin-academic-card" key={college.id}><div className="admin-list-row"><span className="admin-row-icon violet"><Icon name="book" size={18}/></span><div><strong>{college.name || 'College'}</strong><small>{schools.length ? `${schools.length} schools loaded` : 'Academic institution'}</small></div><button onClick={() => toggleAcademicNode('schools', college.id, `colleges/${college.id}/schools`, ['name'])}>{loadingNode === `schools:${college.id}` ? 'Loading…' : expandedCollege === college.id ? 'Hide schools' : 'View schools'}</button><button onClick={() => addAcademicNode(`colleges/${college.id}/schools`, 'School name', true)}>Add school</button></div>{expandedCollege === college.id && schools.map((school) => { const departments = academicChildren[`departments:${school.id}`] || []; return <div className="admin-academic-level" key={school.id}><div className="admin-school-row"><strong>{school.name || 'School'}</strong><div><button onClick={() => toggleAcademicNode('departments', school.id, `colleges/${college.id}/schools/${school.id}/departments`, ['name', 'code'])}>{loadingNode === `departments:${school.id}` ? 'Loading…' : expandedSchool === school.id ? 'Hide departments' : 'View departments'}</button><button onClick={() => addAcademicNode(`colleges/${college.id}/schools/${school.id}/departments`, 'Department name', true)}>Add department</button></div></div>{expandedSchool === school.id && departments.map((department) => { const programmes = academicChildren[`programmes:${department.id}`] || []; return <div className="admin-department-row" key={department.id}><div><span>{department.name || 'Department'}</span><small>{department.code || 'No code'}</small></div><button onClick={() => toggleAcademicNode('programmes', department.id, `colleges/${college.id}/schools/${school.id}/departments/${department.id}/programmes`, ['name', 'code'])}>{loadingNode === `programmes:${department.id}` ? 'Loading…' : expandedDepartment === department.id ? 'Hide programmes' : 'View programmes'}</button><button onClick={() => addAcademicNode(`colleges/${college.id}/schools/${school.id}/departments/${department.id}/programmes`, 'Programme name', true)}>Add programme</button>{expandedDepartment === department.id && programmes.map((programme) => <small className="admin-programme-row" key={programme.id}>{programme.name} {programme.code && `(${programme.code})`}</small>)}</div>})}</div>})}</article>})}{!data?.length && <div className="admin-empty">No colleges found in Firestore.</div>}</div></>}
+        {section === 'academics' && <><div className="admin-section-title"><div><span className="section-kicker">ACADEMIC DIRECTORY</span><h2>Academic structure</h2></div><button className="primary-button" onClick={() => addAcademicNode('colleges', '', 'College name', false, 'colleges')}><Icon name="plus" size={15}/> Add college</button></div><div className="admin-card-list">{(data || []).map((college) => { const schools = academicChildren[`schools:${college.id}`] || []; return <article className="admin-academic-card" key={college.id}><div className="admin-list-row"><span className="admin-row-icon violet"><Icon name="book" size={18}/></span><div><strong>{college.name || 'College'}</strong><small>{schools.length ? `${schools.length} schools loaded` : 'Academic institution'}</small></div><button onClick={() => toggleAcademicNode('schools', college.id, `colleges/${college.id}/schools`, ['name'])}>{loadingNode === `schools:${college.id}` ? 'Loading…' : expandedCollege === college.id ? 'Hide schools' : 'View schools'}</button><button onClick={() => addAcademicNode('schools', college.id, 'School name', true, `colleges/${college.id}/schools`)}>Add school</button></div>{expandedCollege === college.id && schools.map((school) => { const departments = academicChildren[`departments:${school.id}`] || []; return <div className="admin-academic-level" key={school.id}><div className="admin-school-row"><strong>{school.name || 'School'}</strong><div><button onClick={() => toggleAcademicNode('departments', school.id, `colleges/${college.id}/schools/${school.id}/departments`, ['name', 'code'])}>{loadingNode === `departments:${school.id}` ? 'Loading…' : expandedSchool === school.id ? 'Hide departments' : 'View departments'}</button><button onClick={() => addAcademicNode('departments', school.id, 'Department name', true, `colleges/${college.id}/schools/${school.id}/departments`)}>Add department</button></div></div>{expandedSchool === school.id && departments.map((department) => { const programmes = academicChildren[`programmes:${department.id}`] || []; return <div className="admin-department-row" key={department.id}><div><span>{department.name || 'Department'}</span><small>{department.code || 'No code'}</small></div><button onClick={() => toggleAcademicNode('programmes', department.id, `colleges/${college.id}/schools/${school.id}/departments/${department.id}/programmes`, ['name', 'code'])}>{loadingNode === `programmes:${department.id}` ? 'Loading…' : expandedDepartment === department.id ? 'Hide programmes' : 'View programmes'}</button><button onClick={() => addAcademicNode('programmes', department.id, 'Programme name', true, `colleges/${college.id}/schools/${school.id}/departments/${department.id}/programmes`)}>Add programme</button>{expandedDepartment === department.id && programmes.map((programme) => <small className="admin-programme-row" key={programme.id}>{programme.name} {programme.code && `(${programme.code})`}</small>)}</div>})}</div>})}</article>})}{!data?.length && <div className="admin-empty">No colleges found.</div>}</div></>}
         {section === 'practice' && <><div className="admin-section-title"><div><span className="section-kicker">LEARNING ACTIVITY · LATEST 25 PER STREAM</span><h2>Practice analytics</h2><p>Figures summarize the recent records shown here, not all historical activity.</p></div><button className="notification-refresh" onClick={refresh}><Icon name="clock" size={15}/> Refresh</button></div><div className="admin-stats-grid"><Stat label="Recent marking attempts" value={data?.usage?.length} icon="spark"/><Stat label="Marked in this sample" value={data?.usage?.filter((item) => item.status === 'marked').length} icon="check" tone="blue"/><Stat label="Coins charged in sample" value={data?.usage?.reduce((sum, item) => sum + Number(item.coinsCharged || 0), 0)} icon="coins" tone="gold"/><Stat label="Unlocks in sample" value={data?.unlocks?.filter((item) => item.action === 'paper_unlock').length} icon="lock" tone="violet"/></div><div className="admin-section-title sub"><h2>Recent marking activity</h2></div><div className="admin-card-list">{(data?.usage || []).map((item) => <article className="admin-list-row" key={item.id}><span className="admin-row-icon mint"><Icon name="spark" size={17}/></span><div><strong>{item.paperTitle || 'Practice marking'}</strong><small>{item.answerCount || 0} answers · {item.status || 'pending'} · {valueDate(item.submittedAt)}</small></div><span className="admin-badge">{Number(item.coinsCharged || 0)} coins</span></article>)}{!data?.usage?.length && <div className="admin-empty">No recent marking activity.</div>}</div><div className="admin-section-title sub"><h2>Recent coin unlocks</h2></div><div className="admin-card-list">{(data?.unlocks || []).filter((item) => item.action === 'paper_unlock').map((item) => <article className="admin-list-row" key={item.id}><span className="admin-row-icon blue"><Icon name="lock" size={17}/></span><div><strong>Paper unlocked</strong><small>{item.action || 'Unlock'} · {valueDate(item.createdAt)}</small></div><span className="admin-badge">{Number(item.freeCoinsSpent || 0) + Number(item.purchasedCoinsSpent || 0)} coins</span></article>)}{!data?.unlocks?.some((item) => item.action === 'paper_unlock') && <div className="admin-empty">No paper unlocks in the recent sample.</div>}</div></>}
         {section === 'discussions' && <><div className="admin-section-title"><div><span className="section-kicker">COMMUNITY ACTIVITY · LATEST 50</span><h2>Group discussions</h2><p>Recent scheduled paper discussions across study groups.</p></div><button className="notification-refresh" onClick={refresh}><Icon name="clock" size={15}/> Refresh</button></div><div className="admin-stats-grid"><Stat label="Recent plans" value={data?.length} icon="messages" tone="violet"/><Stat label="Questions planned" value={(data || []).reduce((sum, plan) => sum + Number(plan.questionCount || 0), 0)} icon="file" tone="blue"/><Stat label="Questions published" value={(data || []).reduce((sum, plan) => sum + Math.max(0, Number(plan.currentQuestionIndex ?? -1) + 1), 0)} icon="check"/></div><div className="admin-card-list">{(data || []).map((plan) => <article className="admin-list-row" key={plan.id}><span className="admin-row-icon violet"><Icon name="messages" size={18}/></span><div><strong>{plan.paperTitle || 'Group discussion'}</strong><small>{plan.course || `Group ${String(plan.groupId || '').slice(0, 8)}`} · {valueDate(plan.scheduledAt)} · Question {Math.max(0, Number(plan.currentQuestionIndex ?? -1) + 1)} of {plan.questionCount || '—'}</small></div><span className="admin-badge">Scheduled</span></article>)}</div>{!data?.length && <div className="admin-empty">No discussion plans found.</div>}</>}
         {section === 'reports' && <><div className="admin-section-title"><div><span className="section-kicker">CONTENT QUALITY · LATEST 25</span><h2>Paper reports <span className="admin-count">{data?.length || 0} loaded</span></h2></div><button className="notification-refresh" onClick={refresh}><Icon name="clock" size={15}/> Refresh</button></div><div className="admin-card-list">{(data || []).map((report) => <article className="admin-report" key={report.id}><div className="admin-report-head"><div><strong>{report.paperTitle || 'Untitled paper'}</strong><small>{report.category || 'Other'} · {valueDate(report.createdAt)}</small></div><select aria-label="Report status" value={report.status || 'open'} onChange={(event) => { const status = event.target.value; act(() => patchDocument(session.idToken, `paperReports/${report.id}`, { status, updatedAt: new Date() }), 'Report status updated.', () => updateLoadedRow(report.id, { status })) }}><option value="open">Open</option><option value="reviewing">Reviewing</option><option value="resolved">Resolved</option></select></div><p>{report.details || 'No additional details.'}</p><small>Reported by {report.reporterId || 'Unknown user'}</small></article>)}{!data?.length && <div className="admin-empty">There are no paper reports.</div>}</div></>}

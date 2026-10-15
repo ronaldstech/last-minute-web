@@ -4,6 +4,7 @@ declare(strict_types=1);
 use LastMinute\Config\Database;
 use LastMinute\Controllers\AuthController;
 use LastMinute\Controllers\AdminUserController;
+use LastMinute\Controllers\AdminAcademicController;
 use LastMinute\Http\Request;
 use LastMinute\Middleware\Authenticate;
 use LastMinute\Repositories\SessionRepository;
@@ -30,6 +31,7 @@ function last_minute_router(): Router
     $controller = new AuthController($auth, new Authenticate($sessions));
     $authenticate = new Authenticate($sessions);
     $adminUsers = new AdminUserController(new \LastMinute\Repositories\AdminUserRepository($pdo), $authenticate);
+    $adminAcademics = new AdminAcademicController(new \LastMinute\Repositories\AcademicStructureRepository($pdo), $authenticate);
     $router = new Router();
     $router->add('POST', '/auth/register', [$controller, 'register']);
     $router->add('POST', '/auth/login', [$controller, 'login']);
@@ -38,6 +40,8 @@ function last_minute_router(): Router
     $router->add('GET', '/admin/users', [$adminUsers, 'index']);
     $router->add('PATCH', '/admin/users', [$adminUsers, 'update']);
     $router->add('POST', '/admin/users/gift', [$adminUsers, 'gift']);
+    $router->add('GET', '/admin/academics', [$adminAcademics, 'index']);
+    $router->add('POST', '/admin/academics', [$adminAcademics, 'create']);
     return $router;
 }
 

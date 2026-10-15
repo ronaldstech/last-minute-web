@@ -7,7 +7,7 @@ This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backen
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. In the htdocs copy, create `.env` from `.env.example`; set MySQL credentials if they differ from XAMPP defaults.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql` once.
+   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql` and `migrations/002_add_academic_structure.sql` once.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
@@ -26,6 +26,7 @@ This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backen
 | `src/Controllers/AuthController.php` | HTTP handlers for auth routes. |
 | `src/Services/AuthService.php` | Validation, password hashing, and session behavior. |
 | `src/Repositories/` | Prepared SQL queries for users and sessions. |
+| `src/Controllers/AdminAcademicController.php` and `src/Repositories/AcademicStructureRepository.php` | Admin-only academic directory API and SQL hierarchy. |
 | `src/Middleware/Authenticate.php` | Bearer-session validation. |
 | `src/Support/UserSerializer.php` | Safe public user response shape. |
 | `schema.sql` | Account and session table definitions. |
@@ -43,6 +44,8 @@ Errors use `{ "message": "..." }` JSON.
 | `GET` | `/backend/public/admin/users?limit=40&search=&cursor=` | Admin bearer token | Search and page through SQL accounts. Returns `users` and `nextCursor`. |
 | `PATCH` | `/backend/public/admin/users?id={id}` | Admin bearer token | Set `{ "isAdmin": true|false }` or `{ "isSuspended": true|false }`. |
 | `POST` | `/backend/public/admin/users/gift?id={id}` | Admin bearer token | Add `{ "amount": 50 }` free coins to an account. |
+| `GET` | `/backend/public/admin/academics?type=colleges` | Admin bearer token | List colleges. Use `type=schools&parentId={collegeId}`, `type=departments&parentId={schoolId}`, or `type=programmes&parentId={departmentId}` for descendants. Returns `records`. |
+| `POST` | `/backend/public/admin/academics` | Admin bearer token | Create `{ "type": "colleges|schools|departments|programmes", "name": "...", "code": "...", "parentId": "..." }`. `parentId` is required below college level. Returns `record`. |
 
 Signup accepts `{ "name", "email", "phone", "password" }`. Login accepts `{ "email", "password" }`. Passwords use PHP's `password_hash` and `password_verify`. The client receives a random 256-bit token; MySQL stores only its SHA-256 digest. Sessions expire after 30 days.
 

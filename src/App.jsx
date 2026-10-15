@@ -23,9 +23,29 @@ const navItems = [
   { label: 'Study groups', icon: 'users' },
 ]
 
+const PAGE_STATE_KEY = 'last-minute-page-state'
+const validTabs = new Set(['Home', 'Papers', 'Saved', 'Coins', 'Study groups', 'Notifications', 'Profile', 'Admin'])
+
+function readPageState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PAGE_STATE_KEY) || '{}')
+    const selectedPaper = saved.selectedPaper && typeof saved.selectedPaper === 'object'
+      ? saved.selectedPaper
+      : null
+    return {
+      activeTab: validTabs.has(saved.activeTab) ? saved.activeTab : 'Home',
+      query: typeof saved.query === 'string' ? saved.query : '',
+      selectedPaper: selectedPaper && selectedPaper.id !== undefined ? selectedPaper : null,
+    }
+  } catch {
+    return { activeTab: 'Home', query: '', selectedPaper: null }
+  }
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState('Home')
-  const [query, setQuery] = useState('')
+  const [initialPage] = useState(readPageState)
+  const [activeTab, setActiveTab] = useState(initialPage.activeTab)
+  const [query, setQuery] = useState(initialPage.query)
   const [notice, setNotice] = useState('')
   const noticeTimer = useRef(null)
   const [savedIds, setSavedIds] = useState([])
@@ -33,11 +53,19 @@ function App() {
   const [papersLoading, setPapersLoading] = useState(true)
   const [savedLoading, setSavedLoading] = useState(true)
   const [profile, setProfile] = useState(null)
-  const [selectedPaper, setSelectedPaper] = useState(null)
+  const [selectedPaper, setSelectedPaper] = useState(initialPage.selectedPaper)
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const coinBalance = Number(profile?.coinBalance || 0)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PAGE_STATE_KEY, JSON.stringify({ activeTab, query, selectedPaper }))
+    } catch {
+      // The current view still works if browser storage is unavailable.
+    }
+  }, [activeTab, query, selectedPaper])
 
   const showNotice = useCallback((text) => {
     setNotice(text)
@@ -112,6 +140,13 @@ function App() {
     setSession(null)
     setSelectedPaper(null)
     setActiveTab('Home')
+    setQuery('')
+    try {
+      localStorage.removeItem(PAGE_STATE_KEY)
+      localStorage.removeItem('last-minute-admin-section')
+    } catch {
+      // Signing out must still complete if browser storage is unavailable.
+    }
     setProfile(null)
     setPapers([])
     setSavedIds([])
@@ -121,7 +156,7 @@ function App() {
 
   if (!session) {
     return <>
-      <AuthScreen onAuthenticated={(userSession) => { saveSession(userSession); setProfile(userSession.profile); setPapers([]); setSavedIds([]); setPapersLoading(false); setSavedLoading(false); setSession(userSession) }} showNotice={showNotice} />
+      <AuthScreen onAuthenticated={(userSession) => { setActiveTab('Home'); setQuery(''); setSelectedPaper(null); saveSession(userSession); setProfile(userSession.profile); setPapers([]); setSavedIds([]); setPapersLoading(false); setSavedLoading(false); setSession(userSession) }} showNotice={showNotice} />
       {notice && <div className="toast auth-toast" role="status">{notice}</div>}
     </>
   }

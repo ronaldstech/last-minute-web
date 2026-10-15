@@ -4,6 +4,13 @@ import ScreenHeader from '../components/ScreenHeader.jsx'
 import { createStudyGroup, listMyGroups, listMyInvitations, respondToInvitation } from '../services/studyRepository.js'
 import GroupDiscussionScreen from './GroupDiscussionScreen.jsx'
 
+function readActiveGroup(userId) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`last-minute-active-group:${userId}`) || 'null')
+    return saved && typeof saved.id === 'string' ? saved : null
+  } catch { return null }
+}
+
 export default function GroupsScreen({ session, profile, showNotice }) {
   const [groups, setGroups] = useState([])
   const [invitations, setInvitations] = useState([])
@@ -13,8 +20,16 @@ export default function GroupsScreen({ session, profile, showNotice }) {
   const [saving, setSaving] = useState(false)
   const [respondingId, setRespondingId] = useState('')
   const [form, setForm] = useState({ name: '', course: '', description: '' })
-  const [activeGroup, setActiveGroup] = useState(null)
+  const [activeGroup, setActiveGroup] = useState(() => readActiveGroup(session.userId))
   const userId = session.userId
+
+  useEffect(() => {
+    try {
+      const key = `last-minute-active-group:${userId}`
+      if (activeGroup) localStorage.setItem(key, JSON.stringify(activeGroup))
+      else localStorage.removeItem(key)
+    } catch { /* Keep group navigation usable without browser storage. */ }
+  }, [activeGroup, userId])
 
   const refresh = useCallback(() => {
     setLoading(true)

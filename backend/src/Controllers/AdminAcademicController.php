@@ -1,0 +1,45 @@
+<?php
+declare(strict_types=1);
+
+namespace LastMinute\Controllers;
+
+use LastMinute\Http\ApiException;
+use LastMinute\Http\Request;
+use LastMinute\Middleware\Authenticate;
+use LastMinute\Repositories\AcademicStructureRepository;
+
+/** Admin-only academic directory endpoints. */
+final class AdminAcademicController
+{
+    public function __construct(private readonly AcademicStructureRepository $academics, private readonly Authenticate $authenticate) {}
+
+    public function index(Request $request): array
+    {
+        $this->requireAdmin($request);
+        $type = $request->query('type');
+        if (!AcademicStructureRepository::validType($type)) throw new ApiException('Choose colleges, schools, departments, or programmes.', 422);
+        $parentId = $request->query('parentId');
+        if (AcademicStructureRepository::requiresParent($type) && !preg_match('/^[1-9][0-9]{0,18}$/', $parentId)) throw new ApiException('A valid parent ID is required.', 422);
+        return ['data' => ['records' => $this->academics->page($type, $parentId ?: null)]];
+    }
+
+    public function create(Request $request): array
+    {
+        $this->requireAdmin($request);
+        $body = $request->json();
+        $type = is_string($body['type'] ?? null) ? $body['type'] : '';
+        $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');
+        $code = trim(is_string($body['code'] ?? null) ? $body['code'] : '');
+        $parentId = is_scalar($body['parentId'] ?? null) ? (string)$body['parentId'] : '';
+        if (!AcademicStructureRepository::validType($type)) throw new ApiException('Choose colleges, schools, departments, or programmes.', 422);
+        if ($name === '' || mb_strlen($name) > 160) throw new ApiException('Name must contain 1 to 160 characters.', 422);
+        if (mb_strlen($code) > 32) throw new ApiException('Code must contain at most 32 characters.', 422);
+        if (AcademicStructureRepository::requiresParent($type) && !preg_match('/^[1-9][0-9]{0,18}$/', $parentId)) throw new ApiException('A valid parent ID is required.', 422);
+        return ['status' => 201, 'data' => ['record' => $this->academics->create($type, $name, $code, $parentId ?: null)]];
+    }
+
+    private function requireAdmin(Request $request): void
+    {
+        if (!$this->authenticate->user($request)['isAdmin']) throw new ApiException('Administrator access is required.', 403);
+    }
+}
