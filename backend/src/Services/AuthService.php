@@ -58,6 +58,7 @@ final class AuthService
         if (!$user || strlen($password) > 4096 || !password_verify($password, $user['password_hash'])) {
             throw new ApiException('The email or password is incorrect.', 401);
         }
+        if (!empty($user['is_suspended'])) throw new ApiException('This account is suspended. Contact support for help.', 403);
         if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) {
             $hash = password_hash($password, PASSWORD_DEFAULT);
             $this->users->updatePasswordHash((string)$user['id'], $hash);

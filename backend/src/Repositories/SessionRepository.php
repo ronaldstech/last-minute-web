@@ -21,7 +21,7 @@ final class SessionRepository
     /** Load an active account from the supplied token digest. */
     public function findActiveUser(string $tokenHash): ?array
     {
-        $query = $this->pdo->prepare('SELECT u.* FROM user_sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP() LIMIT 1');
+        $query = $this->pdo->prepare('SELECT u.* FROM user_sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP() AND u.is_suspended = 0 LIMIT 1');
         $query->execute([$tokenHash]);
         return $query->fetch() ?: null;
     }

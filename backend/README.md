@@ -7,6 +7,7 @@ This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backen
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. In the htdocs copy, create `.env` from `.env.example`; set MySQL credentials if they differ from XAMPP defaults.
 3. Import `schema.sql` from phpMyAdmin.
+   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql` once.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
@@ -39,8 +40,15 @@ Errors use `{ "message": "..." }` JSON.
 | `POST` | `/backend/public/auth/login` | Public | Verify email/password and create a session. |
 | `GET` | `/backend/public/auth/me` | Bearer token | Read the current account. |
 | `POST` | `/backend/public/auth/logout` | Bearer token | Revoke the current session. |
+| `GET` | `/backend/public/admin/users?limit=40&search=&cursor=` | Admin bearer token | Search and page through SQL accounts. Returns `users` and `nextCursor`. |
+| `PATCH` | `/backend/public/admin/users?id={id}` | Admin bearer token | Set `{ "isAdmin": true|false }` or `{ "isSuspended": true|false }`. |
+| `POST` | `/backend/public/admin/users/gift?id={id}` | Admin bearer token | Add `{ "amount": 50 }` free coins to an account. |
 
 Signup accepts `{ "name", "email", "phone", "password" }`. Login accepts `{ "email", "password" }`. Passwords use PHP's `password_hash` and `password_verify`. The client receives a random 256-bit token; MySQL stores only its SHA-256 digest. Sessions expire after 30 days.
+
+Admin user routes resolve the current bearer session and read the administrator role from MySQL on each request. Suspended accounts cannot sign in or use an existing session. The user list returns only public account fields and never includes password hashes.
+
+To grant the first administrator, update the account directly in MySQL after registering it: `UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';`. Replace the address with the registered account email.
 
 ## Postman
 

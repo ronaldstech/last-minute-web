@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use LastMinute\Config\Database;
 use LastMinute\Controllers\AuthController;
+use LastMinute\Controllers\AdminUserController;
 use LastMinute\Http\Request;
 use LastMinute\Middleware\Authenticate;
 use LastMinute\Repositories\SessionRepository;
@@ -27,11 +28,16 @@ function last_minute_router(): Router
     $sessions = new SessionRepository($pdo);
     $auth = new AuthService($pdo, $users, $sessions);
     $controller = new AuthController($auth, new Authenticate($sessions));
+    $authenticate = new Authenticate($sessions);
+    $adminUsers = new AdminUserController(new \LastMinute\Repositories\AdminUserRepository($pdo), $authenticate);
     $router = new Router();
     $router->add('POST', '/auth/register', [$controller, 'register']);
     $router->add('POST', '/auth/login', [$controller, 'login']);
     $router->add('GET', '/auth/me', [$controller, 'me']);
     $router->add('POST', '/auth/logout', [$controller, 'logout']);
+    $router->add('GET', '/admin/users', [$adminUsers, 'index']);
+    $router->add('PATCH', '/admin/users', [$adminUsers, 'update']);
+    $router->add('POST', '/admin/users/gift', [$adminUsers, 'gift']);
     return $router;
 }
 
@@ -45,7 +51,7 @@ function run_last_minute_api(): never
         header("Access-Control-Allow-Origin: {$origin}");
         header('Vary: Origin');
         header('Access-Control-Allow-Headers: Authorization, Content-Type');
-        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS');
     }
     if ($request->method === 'OPTIONS') {
         http_response_code(204);

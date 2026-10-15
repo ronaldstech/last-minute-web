@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import ScreenHeader from '../components/ScreenHeader.jsx'
 import PaperReviewEditor from '../components/admin/PaperReviewEditor.jsx'
+import { giftAdminUserCoins, listAdminUsers, updateAdminUser } from '../services/adminUsers.js'
 import { countCollection, deleteDocument, getDocument, getOptionalDocument, listCollectionPage, queryCollectionGroupPage, patchDocument, setDocument, commitWrites, documentName, encodeFields } from '../services/firestore.js'
 import { importPaperFile } from '../services/paperImport.js'
 import './AdminScreen.css'
@@ -12,7 +13,7 @@ const sections = [
   ['discussions', 'Group discussions', 'messages'], ['reports', 'Paper reports', 'bell'], ['settings', 'App configuration', 'sliders'],
 ]
 
-async function loadAdminData(section, token, pageToken = '') {
+async function loadAdminData(section, token, pageToken = '', search = '') {
   switch (section) {
     case 'dashboard': {
       const [users, papers, groups] = await Promise.all([
@@ -20,7 +21,7 @@ async function loadAdminData(section, token, pageToken = '') {
       ])
       return { users, papers, groups }
     }
-    case 'users': return listCollectionPage(token, 'users', { pageSize: 40, pageToken, fields: ['username', 'email', 'phoneNumber', 'coinBalance', 'freeCoinBalance', 'isAdmin', 'role', 'isSuspended', 'phoneVerified'] })
+    case 'users': return listAdminUsers(token, { cursor: pageToken, search })
     // Older papers may not have updatedAt. Ordering by it silently omits those
     // documents from Firestore results, so use the document-name order here.
     case 'papers': return listCollectionPage(token, 'papers', { pageSize: 40, pageToken, fields: ['title', 'course', 'year', 'semester', 'updatedAt', 'questionCount'] })
@@ -123,7 +124,7 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
     const cached = sectionCache.current.get(section)
     if (cached) return undefined
     let active = true
-    loadAdminData(section, session.idToken).then((result) => {
+    loadAdminData(section, section === 'users' ? session.token : session.idToken, '', section === 'users' ? search : '').then((result) => {
       const paged = result && Array.isArray(result.documents)
       const resultData = paged ? result.documents : result
       const cursor = paged ? result.nextPageToken : ''
@@ -143,7 +144,7 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
     if (!nextPageToken || loadingMore) return
     setLoadingMore(true)
     try {
-      const result = await loadAdminData(section, session.idToken, nextPageToken)
+      const result = await loadAdminData(section, section === 'users' ? session.token : session.idToken, nextPageToken, section === 'users' ? search : '')
       if (activeSectionRef.current !== section) return
       const rows = result.documents || []
       const cursor = result.nextPageToken || ''
@@ -201,18 +202,15 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
     if (raw === null) return
     const amount = Number(raw)
     if (!Number.isInteger(amount) || amount <= 0) return showNotice('Enter a positive whole number of coins.')
-    const id = `admin-coin-gift-${user.id}-${crypto.randomUUID().replaceAll('-', '')}`
-    await act(() => commitWrites(session.idToken, [
-      { transform: { document: documentName(`users/${user.id}`), fieldTransforms: [{ fieldPath: 'freeCoinBalance', increment: { integerValue: amount } }] } },
-      { update: { name: documentName(`notifications/${id}`), fields: encodeFields({ title: 'You received a coin gift!', body: `The Last Minute team gifted you ${amount} free coins.`, kind: 'success', userId: user.id, createdBy: session.userId, createdAt: new Date(), details: { Gift: `${amount} free coins` }, readBy: [] }) } },
-    ]), `${amount} free coins gifted.`, () => updateLoadedRow(user.id, { freeCoinBalance: Number(user.freeCoinBalance || 0) + amount }))
+    await act(async () => { const updated = await giftAdminUserCoins(session.token, user.id, amount); updateLoadedRow(user.id, updated) }, `${amount} free coins gifted.`)
   }
 
   const toggleUserFlag = (user, field, success) => {
     const changes = field === 'isAdmin'
       ? { isAdmin: !userIsAdmin(user), role: userIsAdmin(user) ? 'student' : 'admin' }
       : { [field]: !user[field] }
-    act(() => patchDocument(session.idToken, `users/${user.id}`, changes), success, () => updateLoadedRow(user.id, changes))
+    const payload = field === 'isAdmin' ? { isAdmin: changes.isAdmin } : { isSuspended: changes.isSuspended }
+    act(async () => { const updated = await updateAdminUser(session.token, user.id, payload); updateLoadedRow(user.id, updated) }, success)
   }
 
   const addAcademicNode = (path, promptLabel, withCode = false) => {

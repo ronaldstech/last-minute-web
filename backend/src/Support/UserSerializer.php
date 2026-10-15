@@ -19,6 +19,7 @@ final class UserSerializer
             'coinBalance' => (int)$row['coin_balance'],
             'freeCoinBalance' => (int)$row['free_coin_balance'],
             'phoneVerified' => (bool)$row['phone_verified'],
+            'isSuspended' => (bool)($row['is_suspended'] ?? false),
             'createdAt' => $row['created_at'],
         ];
     }

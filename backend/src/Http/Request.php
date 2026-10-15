@@ -13,6 +13,7 @@ final class Request
         public readonly string $path,
         private readonly string $rawBody,
         private readonly array $headers,
+        private readonly array $query = [],
     ) {}
 
     /** Build a request from PHP's current HTTP globals. */
@@ -32,7 +33,12 @@ final class Request
         if (!isset($headers['Authorization']) && isset($_SERVER['HTTP_AUTHORIZATION'])) {
             $headers['Authorization'] = $_SERVER['HTTP_AUTHORIZATION'];
         }
-        return new self(strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'), $path, file_get_contents('php://input') ?: '', $headers);
+        return new self(strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'), $path, file_get_contents('php://input') ?: '', $headers, $_GET);
+    }
+
+    public function query(string $key, string $default = ''): string
+    {
+        return is_scalar($this->query[$key] ?? null) ? (string)$this->query[$key] : $default;
     }
 
     /** Decode a JSON request body or fail with a client-safe validation error. */
