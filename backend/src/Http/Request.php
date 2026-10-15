@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace LastMinute\Http;
 
+use LastMinute\Config\Environment;
+
 /** Immutable view of method, normalized route, JSON body, and bearer token. */
 final class Request
 {
@@ -17,7 +19,14 @@ final class Request
     public static function fromGlobals(): self
     {
         $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-        $path = preg_replace('~^/api(?=/|$)~', '', $uriPath) ?: '/';
+        $prefix = rtrim(Environment::get('API_PATH_PREFIX', '/backend/public') ?? '', '/');
+        if ($prefix !== '' && ($uriPath === $prefix || str_starts_with($uriPath, $prefix . '/'))) {
+            $uriPath = substr($uriPath, strlen($prefix));
+        } else {
+            // Keep compatibility with deployments that expose the API as /api.
+            $uriPath = preg_replace('~^/api(?=/|$)~', '', $uriPath) ?: '/';
+        }
+        $path = $uriPath ?: '/';
         if ($path === '') $path = '/';
         $headers = function_exists('getallheaders') ? getallheaders() : [];
         if (!isset($headers['Authorization']) && isset($_SERVER['HTTP_AUTHORIZATION'])) {

@@ -1,3 +1,4 @@
+-- Core account and opaque bearer-session tables for the PHP API.
 CREATE DATABASE IF NOT EXISTS last_minute
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;

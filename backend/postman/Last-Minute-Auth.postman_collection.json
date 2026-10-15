@@ -1,0 +1,110 @@
+{
+  "info": {
+    "name": "Last Minute PHP Auth",
+    "description": "Signup, login, inspect the current account, and logout against the PHP/MySQL API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost/backend/public" },
+    { "key": "testName", "value": "Postman Student" },
+    { "key": "testEmail", "value": "" },
+    { "key": "testPhone", "value": "" },
+    { "key": "testPassword", "value": "StudyTest123!" },
+    { "key": "authToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Sign up (creates a new MySQL user)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const suffix = Date.now().toString() + Math.floor(Math.random() * 1000).toString();",
+              "const phoneSuffix = Math.floor(Math.random() * 10000000).toString().padStart(7, '0');",
+              "pm.collectionVariables.set('testEmail', `student.${suffix}@example.test`);",
+              "pm.collectionVariables.set('testPhone', `099${phoneSuffix}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Account created', () => pm.response.to.have.status(201));",
+              "const data = pm.response.json();",
+              "if (data.token) pm.collectionVariables.set('authToken', data.token);",
+              "pm.test('Signup returns an account and session token', () => { pm.expect(data.user).to.be.an('object'); pm.expect(data.token).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"{{testName}}\",\n  \"email\": \"{{testEmail}}\",\n  \"phone\": \"{{testPhone}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/auth/register"
+      }
+    },
+    {
+      "name": "2. Log in",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login succeeded', () => pm.response.to.have.status(200));",
+              "const data = pm.response.json();",
+              "if (data.token) pm.collectionVariables.set('authToken', data.token);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "3. Get current account (Bearer token)",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }] },
+        "url": "{{baseUrl}}/auth/me"
+      }
+    },
+    {
+      "name": "4. Log out (revokes Bearer token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout succeeded', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.unset('authToken');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }] },
+        "url": "{{baseUrl}}/auth/logout"
+      }
+    }
+  ]
+}

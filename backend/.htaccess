@@ -1,0 +1,4 @@
+# Protect PHP source, SQL schema, documentation, and .env if backend/ is under htdocs.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>

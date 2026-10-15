@@ -1,4 +1,4 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/backend/public').replace(/\/$/, '')
 const SESSION_KEY = 'last-minute-session'
 
 async function apiRequest(path, { token, method = 'POST', body } = {}) {

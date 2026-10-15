@@ -1,3 +1,10 @@
+# Forward API paths to the public front controller; source files stay outside web root.
+# Allow requests only into public/; its parent denies access to backend source/config.
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+
+# Rewrite API routes to the public front controller.
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [QSA,L]

@@ -22,7 +22,6 @@ export default function HomeScreen({ query, setQuery, papers, onNavigate, onOpen
         <h1>Ready to study?</h1>
         <p>Find a subject, open a paper, and practise at your pace.</p>
       </div>
-      <div className="date-chip"><Icon name="clock" size={15} /> Make today count</div>
     </section>
 
     <div className="search-wrap">

@@ -4,38 +4,30 @@ A responsive React and Vite version of the Last Minute exam paper library.
 
 ## Run locally
 
-This project loads the root `.env` file through Vite. Email/password sign-in and account creation use the PHP API in `backend/`, with account data stored in MySQL. Firebase remains in the project for app data during the gradual backend migration; it is no longer used to create or authenticate accounts.
-
 ```sh
 npm install
 npm run dev
 ```
 
-### PHP and MySQL auth API
+## PHP and MySQL auth API with XAMPP
 
-1. In XAMPP Control Panel, start Apache and MySQL.
-2. Copy `backend/.env.example` to `backend/.env`. The default XAMPP MySQL username is `root`; set `DB_PASSWORD` to your MySQL password if you configured one.
-3. Open phpMyAdmin, import `backend/schema.sql`, and confirm the `last_minute` database and its tables were created.
-4. Add this Alias to `C:/xampp/apache/conf/httpd.conf`, updating the project path if needed:
+The working backend source is `C:\Users\liwewe\last-minute\backend`. Copy that whole `backend` folder into `C:\xampp\htdocs`, giving you `C:\xampp\htdocs\backend`. Keep the project copy so changes remain in the workspace.
 
-```apache
-Alias /api "C:/Users/liwewe/last-minute/backend/public"
-<Directory "C:/Users/liwewe/last-minute/backend/public">
-    AllowOverride All
-    Require all granted
-</Directory>
-```
+1. Start Apache and MySQL in XAMPP Control Panel.
+2. In the `htdocs\backend` copy, copy `.env.example` to `.env`. XAMPP's default MySQL user is `root`; add your MySQL password if you set one.
+3. Go to `http://localhost/phpmyadmin`, click **Import**, select `C:\xampp\htdocs\backend\schema.sql`, and import it.
+4. Start or restart Vite with `npm run dev`. The local API URL is `http://localhost/backend/public`.
+5. In Postman, import `C:\xampp\htdocs\backend\postman\Last-Minute-Auth.postman_collection.json` and run its requests in order.
 
-5. Confirm Apache has `mod_rewrite` enabled, then restart Apache. The Vite `/api` proxy forwards requests to XAMPP Apache on port 80.
-6. Run the frontend with `npm run dev` and create an account from the signup screen.
+The backend has an `.htaccess` in its root to protect its source files and a second one in `public/` to route API calls. XAMPP must support `.htaccess` and `mod_rewrite` (the default XAMPP Apache setup does).
 
-For deployment, point `VITE_API_BASE_URL` at the deployed PHP API and set `APP_ORIGINS` to the exact frontend origins. Serve `backend/public` as the web root so the database config and schema are not exposed.
+See [backend/README.md](backend/README.md) for module responsibilities, API routes, and the Postman steps.
 
-Use `.env.example` as a reference when setting up another environment. Vite exposes only variables prefixed with `VITE_` to browser code. Keep service credentials such as `GROQ_API_KEY` on the server and never rename them with a `VITE_` prefix.
+The account endpoints use PHP/MySQL. Other app data is still being migrated from Firebase. For a deployed frontend, set `VITE_API_BASE_URL` to the deployed API path and configure `APP_ORIGINS` in the backend environment.
 
 ## Scripts
 
-- `npm run dev` starts the development server.
+- `npm run dev` starts the Vite development server.
 - `npm run build` creates the production bundle in `dist/`.
 - `npm run preview` serves the production bundle locally.
 - `npm run lint` checks the source with ESLint.
