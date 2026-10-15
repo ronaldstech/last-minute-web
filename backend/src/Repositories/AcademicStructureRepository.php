@@ -21,24 +21,24 @@ final class AcademicStructureRepository
     {
         $config = self::TABLES[$type];
         if ($config['parent'] === null) {
-            return $this->pdo->query("SELECT id, name, code FROM {$config['table']} ORDER BY name, id")->fetchAll();
+            return $this->pdo->query("SELECT id, name, alias FROM {$config['table']} ORDER BY name, id")->fetchAll();
         }
-        $statement = $this->pdo->prepare("SELECT id, name, code FROM {$config['table']} WHERE parent_id = ? ORDER BY name, id");
+        $statement = $this->pdo->prepare("SELECT id, name, alias FROM {$config['table']} WHERE parent_id = ? ORDER BY name, id");
         $statement->execute([$parentId]);
         return $statement->fetchAll();
     }
 
-    public function create(string $type, string $name, string $code, ?string $parentId): array
+    public function create(string $type, string $name, string $alias, ?string $parentId): array
     {
         $config = self::TABLES[$type];
         if ($config['parent'] === null) {
-            $statement = $this->pdo->prepare("INSERT INTO {$config['table']} (name, code) VALUES (?, ?)");
-            $statement->execute([$name, $code !== '' ? $code : null]);
+            $statement = $this->pdo->prepare("INSERT INTO {$config['table']} (name, alias) VALUES (?, ?)");
+            $statement->execute([$name, $alias !== '' ? $alias : null]);
         } else {
-            $statement = $this->pdo->prepare("INSERT INTO {$config['table']} (parent_id, name, code) VALUES (?, ?, ?)");
-            $statement->execute([$parentId, $name, $code !== '' ? $code : null]);
+            $statement = $this->pdo->prepare("INSERT INTO {$config['table']} (parent_id, name, alias) VALUES (?, ?, ?)");
+            $statement->execute([$parentId, $name, $alias !== '' ? $alias : null]);
         }
-        return ['id' => (string)$this->pdo->lastInsertId(), 'name' => $name, 'code' => $code];
+        return ['id' => (string)$this->pdo->lastInsertId(), 'name' => $name, 'alias' => $alias];
     }
 
     public static function validType(string $type): bool { return isset(self::TABLES[$type]); }

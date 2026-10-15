@@ -18,7 +18,7 @@ export async function listAcademicRecords(token, type, parentId = '') {
   return result.records || []
 }
 
-export async function createAcademicRecord(token, type, name, code = '', parentId = '') {
-  const result = await request('/admin/academics', token, { method: 'POST', body: { type, name, code, parentId } })
+export async function createAcademicRecord(token, type, name, alias = '', parentId = '') {
+  const result = await request('/admin/academics', token, { method: 'POST', body: { type, name, alias, parentId } })
   return result.record
 }

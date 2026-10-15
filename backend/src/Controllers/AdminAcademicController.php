@@ -29,13 +29,13 @@ final class AdminAcademicController
         $body = $request->json();
         $type = is_string($body['type'] ?? null) ? $body['type'] : '';
         $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');
-        $code = trim(is_string($body['code'] ?? null) ? $body['code'] : '');
+        $alias = trim(is_string($body['alias'] ?? null) ? $body['alias'] : '');
         $parentId = is_scalar($body['parentId'] ?? null) ? (string)$body['parentId'] : '';
         if (!AcademicStructureRepository::validType($type)) throw new ApiException('Choose colleges, schools, departments, or programmes.', 422);
         if ($name === '' || mb_strlen($name) > 160) throw new ApiException('Name must contain 1 to 160 characters.', 422);
-        if (mb_strlen($code) > 32) throw new ApiException('Code must contain at most 32 characters.', 422);
+        if (mb_strlen($alias) > 80) throw new ApiException('Alias must contain at most 80 characters.', 422);
         if (AcademicStructureRepository::requiresParent($type) && !preg_match('/^[1-9][0-9]{0,18}$/', $parentId)) throw new ApiException('A valid parent ID is required.', 422);
-        return ['status' => 201, 'data' => ['record' => $this->academics->create($type, $name, $code, $parentId ?: null)]];
+        return ['status' => 201, 'data' => ['record' => $this->academics->create($type, $name, $alias, $parentId ?: null)]];
     }
 
     private function requireAdmin(Request $request): void
