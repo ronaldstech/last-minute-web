@@ -83,3 +83,7 @@ export async function signOut(session) {
     clearSession()
   }
 }
+
+export async function updateAccountProfile(token, profile) {
+  return apiRequest('/profile', { method: 'PATCH', token, body: profile })
+}

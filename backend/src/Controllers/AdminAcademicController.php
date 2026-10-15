@@ -16,6 +16,18 @@ final class AdminAcademicController
     public function index(Request $request): array
     {
         $this->requireAdmin($request);
+        return $this->records($request);
+    }
+
+    /** Signed-in users can read the directory to select their study details. */
+    public function catalog(Request $request): array
+    {
+        $this->authenticate->user($request);
+        return $this->records($request);
+    }
+
+    private function records(Request $request): array
+    {
         $type = $request->query('type');
         if (!AcademicStructureRepository::validType($type)) throw new ApiException('Choose colleges, schools, departments, or programmes.', 422);
         $parentId = $request->query('parentId');

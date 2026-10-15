@@ -7,7 +7,7 @@ This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backen
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. In the htdocs copy, create `.env` from `.env.example`; set MySQL credentials if they differ from XAMPP defaults.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql`, `migrations/002_add_academic_structure.sql`, and `migrations/003_add_academic_aliases.sql` once, in order.
+   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql`, `migrations/002_add_academic_structure.sql`, `migrations/003_add_academic_aliases.sql`, and `migrations/004_add_user_study_profile.sql` once, in order.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
@@ -45,7 +45,9 @@ Errors use `{ "message": "..." }` JSON.
 | `PATCH` | `/backend/public/admin/users?id={id}` | Admin bearer token | Set `{ "isAdmin": true|false }` or `{ "isSuspended": true|false }`. |
 | `POST` | `/backend/public/admin/users/gift?id={id}` | Admin bearer token | Add `{ "amount": 50 }` free coins to an account. |
 | `GET` | `/backend/public/admin/academics?type=colleges` | Admin bearer token | List colleges. Use `type=schools&parentId={collegeId}`, `type=departments&parentId={schoolId}`, or `type=programmes&parentId={departmentId}` for descendants. Returns `records`. |
+| `GET` | `/backend/public/academics?type=colleges` | Bearer token | Read the academic directory for profile selections. Use `type=schools&parentId={collegeId}`, `type=departments&parentId={schoolId}`, or `type=programmes&parentId={departmentId}` for descendants. Returns `records` with `id`, `name`, and `alias`. |
 | `POST` | `/backend/public/admin/academics` | Admin bearer token | Create `{ "type": "colleges|schools|departments|programmes", "name": "...", "alias": "...", "parentId": "..." }`. `parentId` is required below college level. Returns `record`. |
+| `PATCH` | `/backend/public/profile` | Bearer token | Update `{ "username", "phoneNumber", "college", "school", "department", "program", "yearOfStudy", "semesterNumber" }`. Email and account permissions cannot be changed through this route. Returns the updated public user. |
 
 Signup accepts `{ "name", "email", "phone", "password" }`. Login accepts `{ "email", "password" }`. Passwords use PHP's `password_hash` and `password_verify`. The client receives a random 256-bit token; MySQL stores only its SHA-256 digest. Sessions expire after 30 days.
 

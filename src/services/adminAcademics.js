@@ -18,6 +18,13 @@ export async function listAcademicRecords(token, type, parentId = '') {
   return result.records || []
 }
 
+export async function listAcademicCatalog(token, type, parentId = '') {
+  const params = new URLSearchParams({ type })
+  if (parentId) params.set('parentId', parentId)
+  const result = await request(`/academics?${params}`, token)
+  return result.records || []
+}
+
 export async function createAcademicRecord(token, type, name, alias = '', parentId = '') {
   const result = await request('/admin/academics', token, { method: 'POST', body: { type, name, alias, parentId } })
   return result.record
