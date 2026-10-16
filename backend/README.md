@@ -7,7 +7,7 @@ This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backen
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. In the htdocs copy, create `.env` from `.env.example`; set MySQL credentials if they differ from XAMPP defaults.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql`, `migrations/002_add_academic_structure.sql`, `migrations/003_add_academic_aliases.sql`, `migrations/004_add_user_study_profile.sql`, `migrations/005_add_papers.sql`, `migrations/006_add_paper_programmes.sql`, and `migrations/007_add_paper_department.sql` once, in order.
+   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql`, `migrations/002_add_academic_structure.sql`, `migrations/003_add_academic_aliases.sql`, `migrations/004_add_user_study_profile.sql`, `migrations/005_add_papers.sql`, `migrations/006_add_paper_programmes.sql`, `migrations/007_add_paper_department.sql`, `migrations/008_add_user_paper_access.sql`, and `migrations/009_add_practice_answer_submissions.sql` once, in order.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
@@ -47,6 +47,12 @@ Errors use `{ "message": "..." }` JSON.
 | `POST` | `/backend/public/admin/papers` | Admin bearer token | Create a paper with `{ "title": "quiz1|midsemester|quiz2|quiz3|endsemester|project|presentation|sample", "course", "year", "semester": "1|2", "departmentId", "programmeAssignments": [{ "programmeId", "studyYear": 1 }], "questions": [] }`. Exam year must be 2015 through the current year. Returns the saved `paper`. |
 | `PATCH` | `/backend/public/admin/papers?id={id}` | Admin bearer token | Replace a paper's metadata, department, programme assignments, and question content. Returns the updated `paper`. |
 | `DELETE` | `/backend/public/admin/papers?id={id}` | Admin bearer token | Delete a paper from the SQL library. |
+| `GET` | `/backend/public/papers` | Student bearer token | List papers with saved/unlocked state and no question content. |
+| `GET` | `/backend/public/papers/detail?id={id}` | Student bearer token | Read paper details; question content is returned only after it is unlocked. |
+| `POST` | `/backend/public/papers/saved?id={id}` | Student bearer token | Save a paper to the account. |
+| `DELETE` | `/backend/public/papers/saved?id={id}` | Student bearer token | Remove a paper from the account's saved list. |
+| `POST` | `/backend/public/papers/unlock?id={id}` | Student bearer token | Spend 20 coins once to unlock a paper. Free coins are used before purchased coins; repeat requests do not charge again. Returns the unlocked paper and updated account balances. |
+| `POST` | `/backend/public/papers/answers` | Student bearer token | Submit `{ "paperId": "123", "questionKey": "question-id.part-id", "answer": "..." }` for an unlocked paper. The key must identify a real top-level question or nested subquestion. Stores the latest answer per prompt and queues it with `pending` status for marking. |
 | `PATCH` | `/backend/public/admin/users?id={id}` | Admin bearer token | Set `{ "isAdmin": true|false }` or `{ "isSuspended": true|false }`. |
 | `POST` | `/backend/public/admin/users/gift?id={id}` | Admin bearer token | Add `{ "amount": 50 }` free coins to an account. |
 | `GET` | `/backend/public/admin/academics?type=colleges` | Admin bearer token | List colleges. Use `type=schools&parentId={collegeId}`, `type=departments&parentId={schoolId}`, or `type=programmes&parentId={departmentId}` for descendants. Returns `records`. |

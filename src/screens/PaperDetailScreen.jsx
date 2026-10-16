@@ -1,27 +1,83 @@
+import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import PracticeMode from './PracticeMode.jsx'
+import { hasAnswerablePrompt } from '../utils/paperQuestions.js'
+import './PaperDetailScreen.css'
 
-const questions = [
-  'Define the key terms used in this topic.',
-  'Explain your answer with a suitable example.',
-  'Show all working and give your answer clearly.',
-]
+function ContentBlock({ block }) {
+  if (!block || typeof block !== 'object') return null
+  if (block.type === 'code') return <pre className="paper-content-code"><code>{block.code || ''}</code></pre>
+  if (block.type === 'image') return <figure className="paper-content-image">{/^https?:\/\//i.test(block.path || '') ? <img src={block.path} alt={block.caption || 'Paper reference'} /> : <span><Icon name="file" size={16}/> Image reference: {block.path || 'not available'}</span>}{block.caption && <figcaption>{block.caption}</figcaption>}</figure>
+  if (block.type === 'bullet_list') {
+    const List = block.ordered ? 'ol' : 'ul'
+    return <List className="paper-content-list">{(block.items || []).map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</List>
+  }
+  if (block.type === 'table') return <div className="paper-content-table-wrap">{block.title && <strong>{block.title}</strong>}<table className="paper-content-table"><thead><tr>{(block.columns || []).map((column, index) => <th key={`${index}-${column}`}>{column}</th>)}</tr></thead><tbody>{(block.rows || []).map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>
+  return block.text ? <p>{block.text}</p> : null
+}
 
-export default function PaperDetailScreen({ paper, activeTab, balance, onBack, showNotice }) {
-  return (
-    <section className="paper-detail-screen">
-      <button className="back-link" onClick={onBack}>← Back to {activeTab.toLowerCase()}</button>
-      <span className={`paper-subject ${paper.tone}-text`}>{paper.subject}</span>
-      <h1>{paper.title}</h1>
-      <p>{paper.detail}</p>
-      <div className="detail-document">
-        <span><Icon name="file" size={18} /> EXAM PAPER</span>
-        <h2>{paper.title}</h2>
-        <p>Section A · Answer all questions in this section.</p>
-        {questions.map((question, index) => (
-          <div className="question-preview" key={question}><strong>{index + 1}.</strong><span>{question}</span><i>[4 marks]</i></div>
-        ))}
-      </div>
-      <button className="primary-button unlock-button" onClick={() => showNotice(`Unlocking this paper costs 20 coins. Your balance is ${balance}.`)}><Icon name="lock" size={16} /> Unlock paper · 20 coins</button>
-    </section>
-  )
+function PracticeAnswerField({ answerKey, answer, submission, submitting, error, onChange, onSubmit }) {
+  const inputId = `practice-answer-${answerKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+  return <div className="practice-answer-field">
+    <label className="practice-answer-label" htmlFor={inputId}>Your answer <span>Saved automatically</span></label>
+    <textarea id={inputId} value={answer || ''} disabled={submitting} onChange={(event) => onChange(answerKey, event.target.value)} placeholder="Write your answer here…" rows={4}/>
+    <div className="practice-submit-row">
+      <button className="practice-submit" type="button" disabled={submitting || !answer?.trim()} onClick={() => onSubmit(answerKey)}><Icon name={submitting ? 'clock' : 'spark'} size={14}/>{submitting ? 'Submitting…' : submission ? 'Submit again' : 'Submit for marking'}</button>
+      {submission && <span className="practice-submit-status"><Icon name="check" size={13}/> Submitted · {submission.status === 'pending' ? 'awaiting marking' : submission.status}</span>}
+      {error && <span className="practice-submit-error" role="alert">{error}</span>}
+    </div>
+  </div>
+}
+
+function Subquestions({ items = [], depth = 0, parentKey = '', answers = {}, submissions = {}, submitting = {}, errors = {}, onPracticeAnswer, onPracticeSubmit }) {
+  if (!items.length) return null
+  return <div className="paper-detail-subquestions" style={{ '--question-depth': depth }}>
+    {items.map((item, index) => {
+      const answerKey = `${parentKey}.${item.id || index}`
+      return <article className="paper-detail-subquestion" key={item.id || `${depth}-${index}`}><div className="paper-detail-subquestion-heading"><strong>{item.number || String.fromCharCode(97 + index)}.</strong><span>{item.text}</span>{item.marks !== null && item.marks !== undefined && <small>[{item.marks} marks]</small>}</div>
+        {onPracticeAnswer && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/></div>}
+        <Subquestions items={item.subquestions || []} depth={depth + 1} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit}/></article>
+    })}
+  </div>
+}
+
+export function PaperQuestion({ question, index, answers, submissions, submitting, errors, onPracticeAnswer, onPracticeSubmit }) {
+  const content = Array.isArray(question.content) ? question.content : []
+  const questionNumber = question.number ?? index + 1
+  const answerKey = String(question.id || index)
+  const hasPrompt = hasAnswerablePrompt(question)
+  return <article className="paper-detail-question"><header><strong>{questionNumber}.</strong>{question.type && question.type !== 'structured' && <span>{question.type}</span>}{question.marks !== null && question.marks !== undefined && <small>[{question.marks} marks]</small>}</header>
+    {content.length ? <div className="paper-detail-question-content">{content.map((block, blockIndex) => <ContentBlock key={`${question.id || index}-${blockIndex}`} block={block}/>)}</div> : question.text ? <p className="paper-detail-question-text">{question.text}</p> : null}
+    {question.assets?.length > 0 && <ul className="paper-detail-assets">{question.assets.map((asset, assetIndex) => { const path = typeof asset === 'string' ? asset : asset.path || asset.url || asset.name || 'Attached file'; return <li key={`${path}-${assetIndex}`}>{asset.caption || asset.name || path}</li> })}</ul>}
+    {onPracticeAnswer && hasPrompt && <PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/>}
+    <Subquestions items={question.subquestions || []} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit}/>
+  </article>
+}
+
+export default function PaperDetailScreen({ paper, activeTab, balance, sessionToken, onBack, saved = false, onToggleSaved, onUnlock, onGetCoins, onRetry, loading = false }) {
+  const [unlocking, setUnlocking] = useState(false)
+  const [practicing, setPracticing] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const unlock = async () => {
+    if (unlocking || paper.isUnlocked) return
+    setUnlocking(true)
+    setActionError('')
+    try { await onUnlock() }
+    catch (error) { setActionError(error.message || 'Could not unlock this paper.') }
+    finally { setUnlocking(false) }
+  }
+
+  if (practicing) return <PracticeMode paper={paper} sessionToken={sessionToken} onExit={() => setPracticing(false)} />
+
+  return <section className="paper-detail-screen">
+    <button className="back-link" onClick={onBack}>← Back to {activeTab.toLowerCase()}</button>
+    <div className="paper-detail-topline"><span className={`paper-subject ${paper.tone}-text`}>{paper.subject}</span><div className="paper-detail-actions">{onToggleSaved && <button className={`paper-detail-save ${saved ? 'is-saved' : ''}`} onClick={onToggleSaved}><Icon name="bookmark" size={15}/>{saved ? 'Saved' : 'Save paper'}</button>}</div></div>
+    <h1>{paper.course || paper.title || 'Question paper'}</h1>
+    <p>{[paper.title, paper.year, paper.semester ? `Semester ${paper.semester}` : '', paper.departmentName, `${Number(paper.questionCount || paper.questions?.length || 0)} questions`].filter(Boolean).join(' | ')}</p>
+    {loading || paper.detailLoading ? <div className="paper-detail-state"><span className="notification-spinner"/>Loading paper details...</div> : paper.detailError ? <div className="paper-detail-state paper-detail-error" role="alert">{paper.detailError}<button onClick={onRetry}>Try again</button></div> : paper.isUnlocked ? <><button className="practice-launch" onClick={() => setPracticing(true)}><span><Icon name="spark" size={18}/></span><div><strong>Start practice mode</strong><small>Answer at your own pace. Your work saves automatically.</small></div><Icon name="right" size={17}/></button><div className="detail-document paper-detail-document">
+      <div className="paper-detail-document-heading"><span><Icon name="file" size={18}/> EXAM PAPER</span><h2>{paper.course || paper.title}</h2><p>{[paper.title, paper.year, paper.semester ? `Semester ${paper.semester}` : ''].filter(Boolean).join(' | ')}</p></div>
+      {paper.questions?.length ? <div className="paper-detail-questions">{paper.questions.map((question, index) => <PaperQuestion key={question.id || index} question={question} index={index}/>)}</div> : <div className="paper-detail-state">This paper has no questions yet.</div>}
+    </div></> : <div className="paper-detail-locked"><span className="paper-detail-lock-icon"><Icon name="lock" size={21}/></span><div><strong>Unlock the complete paper</strong><p>This paper contains {Number(paper.questionCount || 0)} questions. Unlock once to view it any time.</p></div><div className="paper-detail-balance"><small>Your balance</small><strong>{balance} coins</strong></div></div>}
+    {!paper.isUnlocked && !loading && !paper.detailLoading && !paper.detailError && <><button className="primary-button unlock-button" onClick={unlock} disabled={unlocking}><Icon name={unlocking ? 'clock' : 'lock'} size={16}/>{unlocking ? 'Unlocking...' : 'Unlock paper · 20 coins'}</button>{actionError && <p className="paper-detail-error" role="alert">{actionError} {balance < 20 && onGetCoins && <button onClick={onGetCoins}>Get coins</button>}</p>}</>}
+  </section>
 }

@@ -10,9 +10,28 @@
     { "key": "testEmail", "value": "" },
     { "key": "testPhone", "value": "" },
     { "key": "testPassword", "value": "StudyTest123!" },
-    { "key": "authToken", "value": "" }
+    { "key": "authToken", "value": "" },
+    { "key": "paperId", "value": "" },
+    { "key": "questionKey", "value": "" }
   ],
   "item": [
+    {
+      "name": "Submit practice answer for marking",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{authToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paperId\": \"{{paperId}}\",\n  \"questionKey\": \"{{questionKey}}\",\n  \"answer\": \"My answer to the question.\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/papers/answers"
+      },
+      "response": []
+    },
     {
       "name": "1. Sign up (creates a new MySQL user)",
       "event": [

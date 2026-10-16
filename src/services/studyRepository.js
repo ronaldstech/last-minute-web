@@ -1,18 +1,22 @@
 import { commitWrites, deleteDocument, documentName, encodeFields, getOptionalDocument, listCollectionPage, patchDocument, queryCollection, setDocument } from './firestore.js'
 
+export function decoratePapers(documents) {
+  return documents.map((paper) => {
+    const course = paper.course || paper.schoolName || paper.departmentName || 'QUESTION PAPER'
+    const detail = [paper.year, paper.semester ? `Semester ${paper.semester}` : '', `${Number(paper.questionCount || 0)} questions`].filter(Boolean).join(' | ')
+    const toneSet = ['mint', 'blue', 'peach', 'violet', 'yellow']
+    const iconSet = ['flask', 'sigma', 'beaker', 'atom', 'book']
+    const index = Math.abs([...course].reduce((sum, char) => sum + char.charCodeAt(0), 0)) % toneSet.length
+    return { ...paper, subject: String(course).toUpperCase(), detail, icon: iconSet[index], tone: toneSet[index] }
+  })
+}
+
 export async function listPapers(token) {
   const page = await listCollectionPage(token, 'papers', {
     orderBy: 'updatedAt', descending: true, pageSize: 100,
     fields: ['title', 'course', 'schoolName', 'departmentName', 'year', 'semester', 'questionCount', 'updatedAt', 'createdAt'],
   })
-  return page.documents.map((paper) => {
-    const course = paper.course || paper.schoolName || paper.departmentName || 'QUESTION PAPER'
-    const date = [paper.course, paper.year, `${Number(paper.questionCount || 0)} questions`].filter(Boolean).join(' · ')
-    const toneSet = ['mint', 'blue', 'peach', 'violet', 'yellow']
-    const iconSet = ['flask', 'sigma', 'beaker', 'atom', 'book']
-    const index = Math.abs([...course].reduce((sum, char) => sum + char.charCodeAt(0), 0)) % toneSet.length
-    return { ...paper, subject: String(course).toUpperCase(), detail: date, icon: iconSet[index], tone: toneSet[index] }
-  })
+  return decoratePapers(page.documents)
 }
 
 export async function listSavedPaperIds(token, userId) {
