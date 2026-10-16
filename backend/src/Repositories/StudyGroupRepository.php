@@ -100,7 +100,7 @@ final class StudyGroupRepository
     {
         $this->requireMember($groupId, $userId);
         $before = $beforeId !== '' ? (int)$beforeId : 0;
-        $statement = $this->pdo->prepare('SELECT id, sender_id AS senderId, sender_name AS senderName, text, message_type AS messageType, paper_details AS paperDetails, discussion_at AS discussionAt, plan_id AS planId, question_index AS questionIndex, question_count AS questionCount, max_marks AS maxMarks, related_question_id AS relatedQuestionId, created_at AS createdAt FROM study_group_messages WHERE group_id = ? AND (? = 0 OR id < ?) ORDER BY id DESC LIMIT 31');
+        $statement = $this->pdo->prepare('SELECT id, sender_id AS senderId, sender_name AS senderName, text, message_type AS messageType, paper_details AS paperDetails, discussion_at AS discussionAt, plan_id AS planId, question_index AS questionIndex, question_count AS questionCount, max_marks AS maxMarks, related_question_id AS relatedQuestionId, marking_result AS markingResult, created_at AS createdAt FROM study_group_messages WHERE group_id = ? AND (? = 0 OR id < ?) ORDER BY id DESC LIMIT 31');
         $statement->execute([$groupId, $before, $before]);
         $rows = $statement->fetchAll();
         $hasMore = count($rows) > 30;
@@ -114,6 +114,7 @@ final class StudyGroupRepository
             $row['questionCount'] = $row['questionCount'] === null ? null : (int)$row['questionCount'];
             $row['maxMarks'] = $row['maxMarks'] === null ? null : (int)$row['maxMarks'];
             $row['paperDetails'] = $row['paperDetails'] === null ? null : json_decode($row['paperDetails'], true);
+            $row['markingResult'] = $row['markingResult'] === null ? null : json_decode($row['markingResult'], true);
             $row['createdAt'] = date(DATE_ATOM, strtotime($row['createdAt']));
             if ($row['discussionAt'] !== null) $row['discussionAt'] = date(DATE_ATOM, strtotime($row['discussionAt']));
             if ($row['messageType'] === '') $row['messageType'] = null;
@@ -324,6 +325,59 @@ final class StudyGroupRepository
             $insert->execute([$groupId, $userId, $senderName, trim($text) ?: 'Pass', trim($text) ? 'discussion_answer' : 'discussion_pass', $question['plan_id'], $question['question_index'], $questionId]);
         } catch (\PDOException $error) {
             if ($error->getCode() === '23000') throw new \DomainException('You have already responded to this question.');
+            throw $error;
+        }
+    }
+
+    public function saveDiscussionMarks(string $userId, string $groupId, string $questionId, array $results): void
+    {
+        $this->requireOwner($groupId, $userId);
+        $this->pdo->beginTransaction();
+        try {
+            $questionQuery = $this->pdo->prepare("SELECT m.plan_id, m.question_index, p.current_question_index FROM study_group_messages m JOIN study_group_plans p ON p.id = m.plan_id WHERE m.id = ? AND m.group_id = ? AND m.message_type = 'discussion_question' AND p.created_by = ? FOR UPDATE");
+            $questionQuery->execute([$questionId, $groupId, $userId]);
+            $question = $questionQuery->fetch();
+            if (!$question) throw new \DomainException('Discussion question not found.');
+            if ((int)$question['current_question_index'] !== (int)$question['question_index']) throw new \DomainException('Only the current question can be marked.');
+
+            $membersQuery = $this->pdo->prepare('SELECT user_id FROM study_group_plan_members WHERE plan_id = ? ORDER BY user_id');
+            $membersQuery->execute([$question['plan_id']]);
+            $joinedIds = array_map('strval', $membersQuery->fetchAll(PDO::FETCH_COLUMN));
+            $answersQuery = $this->pdo->prepare("SELECT id, sender_id, marking_result FROM study_group_messages WHERE group_id = ? AND plan_id = ? AND related_question_id = ? AND message_type IN ('discussion_answer', 'discussion_pass') ORDER BY id");
+            $answersQuery->execute([$groupId, $question['plan_id'], $questionId]);
+            $answers = $answersQuery->fetchAll();
+            $answeredIds = array_map(static fn(array $answer): string => (string)$answer['sender_id'], $answers);
+            if (!$joinedIds || array_diff($joinedIds, $answeredIds)) throw new \DomainException('Wait until every joined member answers or passes before marking.');
+            if (count($answers) !== count($results)) throw new \DomainException('The marking results do not match the group responses.');
+
+            $answersById = [];
+            foreach ($answers as $answer) {
+                if ($answer['marking_result'] !== null) throw new \DomainException('This discussion question has already been marked.');
+                $answersById[(string)$answer['id']] = $answer;
+            }
+            $update = $this->pdo->prepare('UPDATE study_group_messages SET marking_result = ? WHERE id = ? AND group_id = ? AND related_question_id = ? AND marking_result IS NULL');
+            $savedIds = [];
+            foreach ($results as $result) {
+                if (!is_array($result) || !isset($result['id']) || !isset($answersById[(string)$result['id']])) throw new \DomainException('A marking result did not match a group response.');
+                $id = (string)$result['id'];
+                if (isset($savedIds[$id])) throw new \DomainException('A duplicate marking result was provided.');
+                $savedIds[$id] = true;
+                $maxMarks = isset($result['maxMarks']) && is_numeric($result['maxMarks']) ? max(0, (float)$result['maxMarks']) : 0;
+                $score = isset($result['score']) && is_numeric($result['score']) ? min($maxMarks, max(0, (float)$result['score'])) : 0;
+                $marking = [
+                    'score' => round($score, 2), 'maxMarks' => round($maxMarks, 2),
+                    'feedback' => mb_substr((string)($result['feedback'] ?? ''), 0, 5000),
+                    'strengths' => array_slice(array_map(static fn($value): string => mb_substr((string)$value, 0, 500), is_array($result['strengths'] ?? null) ? $result['strengths'] : []), 0, 20),
+                    'improvements' => array_slice(array_map(static fn($value): string => mb_substr((string)$value, 0, 500), is_array($result['improvements'] ?? null) ? $result['improvements'] : []), 0, 20),
+                    'betterAnswer' => mb_substr((string)($result['betterAnswer'] ?? ''), 0, 5000),
+                ];
+                $update->execute([json_encode($marking, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), $id, $groupId, $questionId]);
+                if ($update->rowCount() !== 1) throw new \DomainException('A response could not be updated with its mark.');
+            }
+            if (count($savedIds) !== count($answersById)) throw new \DomainException('A marking result is missing for a group response.');
+            $this->pdo->commit();
+        } catch (\Throwable $error) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
             throw $error;
         }
     }

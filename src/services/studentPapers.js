@@ -86,3 +86,52 @@ export async function markPracticeAnswer({ token, paper, questionKey, answer }) 
   if (!marked) throw new Error('The AI marker returned no result for this answer.')
   return marked
 }
+
+function discussionItemText(item) {
+  if (!item || typeof item !== 'object') return ''
+  const blocks = Array.isArray(item.content) ? item.content.map((block) => {
+    if (typeof block === 'string') return block
+    if (!block || typeof block !== 'object') return ''
+    if (block.type === 'code') return block.code || ''
+    if (block.type === 'bullet_list') return (block.items || []).map((entry) => `• ${entry}`).join('\n')
+    if (block.type === 'table') return [block.title, (block.columns || []).join(' | '), ...(block.rows || []).map((row) => row.join(' | '))].filter(Boolean).join('\n')
+    if (block.type === 'image') return [block.caption, block.path].filter(Boolean).join(' ')
+    return block.text || block.title || ''
+  }).filter(Boolean) : []
+  return (blocks.length ? blocks.join('\n') : item.text || '').trim()
+}
+
+export async function markGroupDiscussionAnswers({ token, plan, question, responses }) {
+  if (!token) throw new Error('Your session has expired. Sign in again before marking answers.')
+  if (!responses?.length) throw new Error('There are no group responses to mark yet.')
+  const prompt = [
+    ...(question.context || []).map((context) => `${context.number || 'Additional information'}: ${discussionItemText(context)}`),
+    `${question.number ? `Question ${question.number}: ` : ''}${discussionItemText(question)}`,
+  ].filter(Boolean).join('\n\n')
+  const paper = {
+    title: plan.paperTitle || 'Group discussion',
+    course: plan.course || '',
+    year: plan.year || '',
+  }
+  const response = await fetch(MARKING_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      paperId: plan.paperId == null ? null : String(plan.paperId),
+      paper,
+      questions: responses.map((entry) => ({
+        id: String(entry.id),
+        number: question.number || '',
+        prompt,
+        answer: entry.text === 'Pass' ? '' : entry.text,
+        maxMarks: Number(question.marks || 0),
+      })),
+    }),
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(result.error || 'The AI marker could not mark these group responses.')
+  if (!Array.isArray(result.results) || result.results.length !== responses.length) {
+    throw new Error('The AI marker did not return a result for every group response.')
+  }
+  return result.results
+}

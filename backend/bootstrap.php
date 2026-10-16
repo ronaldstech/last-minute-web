@@ -94,6 +94,7 @@ function last_minute_router(): Router
     $router->add('POST', '/groups/plans/join', $groupEndpoint('joinPlan'));
     $router->add('POST', '/groups/plans/next', $groupEndpoint('nextQuestion'));
     $router->add('POST', '/groups/plans/end', $groupEndpoint('endDiscussion'));
+    $router->add('POST', '/groups/plans/mark', $groupEndpoint('saveDiscussionMarks'));
     $router->add('POST', '/groups/plans/publish-due', $groupEndpoint('publishDue'));
     $router->add('POST', '/groups/plans/answer', $groupEndpoint('answer'));
     return $router;

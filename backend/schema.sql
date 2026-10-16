@@ -201,6 +201,7 @@ CREATE TABLE IF NOT EXISTS study_group_messages (
   question_count INT NULL,
   max_marks INT NULL,
   related_question_id BIGINT UNSIGNED NULL,
+  marking_result JSON NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY study_group_answer_once (group_id, related_question_id, sender_id),

@@ -83,3 +83,7 @@ export async function publishBackendDueQuestions(token, groupId) {
 export async function answerBackendDiscussionQuestion(token, groupId, questionId, answer) {
   return request(`/groups/plans/answer?groupId=${encodeURIComponent(groupId)}`, token, { method: 'POST', body: { questionId, answer } })
 }
+
+export async function saveBackendDiscussionMarks(token, groupId, questionId, results) {
+  return request(`/groups/plans/mark?groupId=${encodeURIComponent(groupId)}`, token, { method: 'POST', body: { questionId, results } })
+}

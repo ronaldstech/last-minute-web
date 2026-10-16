@@ -146,6 +146,18 @@ final class StudyGroupController
         return ['data' => ['message' => 'Response posted.']];
     }
 
+    public function saveDiscussionMarks(Request $request): array
+    {
+        $user = $this->authenticate->user($request);
+        $groupId = $this->id($request->query('groupId'), 'group');
+        $input = $request->json();
+        $questionId = $this->id((string)($input['questionId'] ?? ''), 'question');
+        $results = $input['results'] ?? null;
+        if (!is_array($results) || !$results) throw new ApiException('Provide marking results for the group responses.', 422);
+        $this->domain(fn() => $this->groups->saveDiscussionMarks((string)$user['id'], $groupId, $questionId, $results));
+        return ['data' => ['saved' => true]];
+    }
+
     private function id(string $value, string $label): string
     {
         if (!preg_match('/^[1-9][0-9]{0,18}$/', $value)) throw new ApiException('A valid ' . $label . ' ID is required.', 422);

@@ -141,6 +141,20 @@ export async function endGroupDiscussion(token, group, userId, plan) {
   return true
 }
 
+export async function saveGroupDiscussionMarks(token, group, userId, questionId, results) {
+  if (group.ownerId !== userId) throw new Error('Only the group creator can mark discussion responses.')
+  const current = await getOptionalDocument(token, `${messagePath(group.id)}/${questionId}`)
+  if (!current || current.messageType !== 'discussion_question') throw new Error('Discussion question not found.')
+  const writes = results.map((result) => ({
+    update: { name: documentName(`${messagePath(group.id)}/${result.id}`), fields: encodeFields({ markingResult: {
+      score: Number(result.score || 0), maxMarks: Number(result.maxMarks || 0), feedback: result.feedback || '',
+      strengths: result.strengths || [], improvements: result.improvements || [], betterAnswer: result.betterAnswer || '',
+    } }) },
+    updateMask: { fieldPaths: ['markingResult'] },
+  }))
+  await commitWrites(token, writes)
+}
+
 export async function publishDueDiscussionQuestions(token, group, userId, plans) {
   if (group.ownerId !== userId) return false
   let published = false
