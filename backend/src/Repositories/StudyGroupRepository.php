@@ -134,6 +134,53 @@ final class StudyGroupRepository
         $statement->execute([$groupId, $userId, $senderName, $text]);
     }
 
+    private function questionBlocks(array $question): array
+    {
+        $content = is_array($question['content'] ?? null) ? $question['content'] : [];
+        if (!$content && trim((string)($question['text'] ?? '')) !== '') {
+            $content = [['type' => 'paragraph', 'text' => (string)$question['text']]];
+        }
+        return $content;
+    }
+
+    private function questionText(array $question, array $content): string
+    {
+        $parts = [];
+        foreach ($content as $block) {
+            if (is_array($block)) $parts[] = (string)($block['text'] ?? $block['title'] ?? '');
+        }
+        return trim((string)($question['text'] ?? '') ?: implode("\n", array_filter($parts)));
+    }
+
+    private function flattenDiscussionQuestion(array $question, string $number, array $context, array &$prompts): void
+    {
+        $children = is_array($question['subquestions'] ?? null) ? $question['subquestions'] : [];
+        $content = $this->questionBlocks($question);
+        if (!$children) {
+            $text = $this->questionText($question, $content);
+            if ($text !== '') {
+                $prompts[] = [
+                    'number' => $number, 'text' => $text, 'content' => $content,
+                    'assets' => is_array($question['assets'] ?? null) ? $question['assets'] : [],
+                    'marks' => $question['marks'] ?? null, 'context' => $context,
+                ];
+            }
+            return;
+        }
+
+        $nextContext = $context;
+        $nextContext[] = [
+            'number' => $number, 'text' => $this->questionText($question, $content),
+            'content' => $content, 'assets' => is_array($question['assets'] ?? null) ? $question['assets'] : [],
+            'marks' => $question['marks'] ?? null,
+        ];
+        foreach ($children as $index => $part) {
+            if (!is_array($part)) continue;
+            $partNumber = (string)($part['number'] ?? chr(97 + $index));
+            $this->flattenDiscussionQuestion($part, $number . '(' . $partNumber . ')', $nextContext, $prompts);
+        }
+    }
+
     public function plans(string $userId, string $groupId): array
     {
         $this->requireMember($groupId, $userId);
@@ -168,20 +215,7 @@ final class StudyGroupRepository
         $questions = [];
         foreach (is_array($rawQuestions) ? $rawQuestions : [] as $index => $question) {
             if (!is_array($question)) continue;
-            $content = [];
-            foreach (($question['content'] ?? []) as $block) {
-                if (is_array($block)) $content[] = (string)($block['text'] ?? $block['title'] ?? '');
-            }
-            $parts = [];
-            foreach (($question['subquestions'] ?? []) as $part) {
-                if (is_array($part)) $parts[] = (!empty($part['number']) ? '(' . $part['number'] . ') ' : '') . (string)($part['text'] ?? '');
-            }
-            $text = implode("\n", array_filter([implode("\n", array_filter($content)), implode("\n", array_filter($parts))]));
-            if (trim($text) === '') $text = (string)($question['text'] ?? '');
-            if (trim($text) === '') continue;
-            $item = ['number' => (string)($question['number'] ?? ($index + 1)), 'text' => trim($text)];
-            if (isset($question['marks'])) $item['marks'] = $question['marks'];
-            $questions[] = $item;
+            $this->flattenDiscussionQuestion($question, (string)($question['number'] ?? ($index + 1)), [], $questions);
         }
         if (!$questions) throw new \DomainException('This paper does not have discussion questions yet.');
 

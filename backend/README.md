@@ -62,9 +62,9 @@ Errors use `{ "message": "..." }` JSON.
 | `POST` | `/backend/public/groups/invitations` | Group owner bearer token | Invite an existing account with `{ "groupId", "email" }`. |
 | `POST` | `/backend/public/groups/invitations/respond` | Invited user's bearer token | Accept or decline with `{ "invitationId", "accept" }`. Accepting also adds group membership. |
 | `GET` / `POST` | `/backend/public/groups/messages?groupId={id}` | Group member bearer token | Read paged discussion messages or post `{ "text" }`. Older-page requests include `before={messageId}`. |
-| `GET` / `POST` | `/backend/public/groups/plans?groupId={id}` | Group member / owner bearer token | List scheduled discussions or create one with `{ "paperId", "scheduledAt" }`. Scheduling is owner-only. |
+| `GET` / `POST` | `/backend/public/groups/plans?groupId={id}` | Group member / owner bearer token | List scheduled discussions or create one with `{ "paperId", "scheduledAt" }`. Scheduling is owner-only. Each answerable leaf prompt becomes one ordered step; parent instructions are retained as context without being copied into the child prompt. |
 | `POST` | `/backend/public/groups/plans/join?groupId={id}` | Group member bearer token | Join a started discussion with `{ "planId" }`. |
-| `POST` | `/backend/public/groups/plans/next?groupId={id}` | Group owner bearer token | Publish the next question for `{ "planId" }`. |
+| `POST` | `/backend/public/groups/plans/next?groupId={id}` | Group owner bearer token | Publish the next prompt step for `{ "planId" }`. Only that current step and its responses are shown; the owner advances after the group responds. |
 | `POST` | `/backend/public/groups/plans/publish-due?groupId={id}` | Group owner bearer token | Automatically publish the first question of due plans. |
 | `POST` | `/backend/public/groups/plans/answer?groupId={id}` | Joined discussion member bearer token | Post `{ "questionId", "answer" }` once for the current discussion question. |
 | `POST` | `/rt/last_minute/backend/public/marking.php` | Student bearer token | Mark one question in a `questions` array. The endpoint resolves the user from the shared backend session and stores every result or provider failure in `marking_usage_events`. Supply `paperId` and a `paper` snapshot with title, course, and year for useful analytics. |

@@ -26,21 +26,38 @@ export async function postGroupMessage(token, group, userId, senderName, text) {
   return current
 }
 
-function questionText(question) {
-  const content = (question.content || []).map((block) => block.text || block.title || '').filter(Boolean).join('\n')
-  const parts = (question.subquestions || []).map((part) => `${part.number ? `(${part.number}) ` : ''}${part.text || ''}`).filter(Boolean).join('\n')
-  return [content, parts].filter(Boolean).join('\n') || question.text || ''
+function questionContent(question) {
+  const content = Array.isArray(question.content) ? question.content : []
+  return content.length ? content : question.text ? [{ type: 'paragraph', text: question.text }] : []
+}
+
+function flattenDiscussionQuestions(questions = []) {
+  const prompts = []
+  const visit = (question, number, context = []) => {
+    const children = question.subquestions || []
+    const text = questionContent(question)
+    if (!children.length) {
+      if (text.length) prompts.push({
+        number, text: question.text || text.map((block) => block.text || block.title || '').filter(Boolean).join('\n'),
+        content: text, assets: question.assets || [], marks: question.marks ?? null, context,
+      })
+      return
+    }
+    const nextContext = [...context, { number, text: question.text || text.map((block) => block.text || block.title || '').filter(Boolean).join('\n'), content: text, assets: question.assets || [], marks: question.marks ?? null }]
+    children.forEach((part, index) => {
+      const partNumber = part.number || String.fromCharCode(97 + index)
+      visit(part, `${number}(${partNumber})`, nextContext)
+    })
+  }
+  questions.forEach((question, index) => visit(question, String(question.number || index + 1)))
+  return prompts
 }
 
 export async function scheduleGroupDiscussion(token, group, userId, paper, scheduledAt) {
   const current = await requireMember(token, group, userId)
   if (current.ownerId !== userId) throw new Error('Only the group creator can schedule discussions.')
   if (!paper?.id) throw new Error('Choose a paper with a valid paper ID.')
-  const questions = (paper.questions || []).map((question, index) => ({
-    number: question.number || String(index + 1),
-    text: questionText(question),
-    ...(question.marks !== undefined ? { marks: question.marks } : {}),
-  })).filter((question) => question.text.trim())
+  const questions = flattenDiscussionQuestions(paper.questions || [])
   if (!questions.length) throw new Error('This paper does not have discussion questions yet.')
   const id = crypto.randomUUID().replaceAll('-', '')
   const date = new Date(scheduledAt)
