@@ -184,7 +184,7 @@ final class StudyGroupRepository
     public function plans(string $userId, string $groupId): array
     {
         $this->requireMember($groupId, $userId);
-        $statement = $this->pdo->prepare('SELECT id, paper_id AS paperId, paper_title AS paperTitle, course, year, semester, paper_details AS paperDetails, questions, question_count AS questionCount, scheduled_at AS scheduledAt, created_by AS createdBy, announcement_message_id AS announcementMessageId, current_question_index AS currentQuestionIndex, created_at AS createdAt FROM study_group_plans WHERE group_id = ? ORDER BY scheduled_at');
+        $statement = $this->pdo->prepare('SELECT id, paper_id AS paperId, paper_title AS paperTitle, course, year, semester, paper_details AS paperDetails, questions, question_count AS questionCount, scheduled_at AS scheduledAt, ended_at AS endedAt, created_by AS createdBy, announcement_message_id AS announcementMessageId, current_question_index AS currentQuestionIndex, created_at AS createdAt FROM study_group_plans WHERE group_id = ? ORDER BY scheduled_at');
         $statement->execute([$groupId]);
         $rows = $statement->fetchAll();
         foreach ($rows as &$row) {
@@ -197,6 +197,7 @@ final class StudyGroupRepository
             $row['paperDetails'] = json_decode($row['paperDetails'], true) ?: [];
             $row['questions'] = json_decode($row['questions'], true) ?: [];
             $row['scheduledAt'] = gmdate(DATE_ATOM, strtotime($row['scheduledAt'] . ' UTC'));
+            $row['endedAt'] = $row['endedAt'] === null ? null : gmdate(DATE_ATOM, strtotime($row['endedAt'] . ' UTC'));
             $row['createdAt'] = date(DATE_ATOM, strtotime($row['createdAt']));
             $row['joinedMemberIds'] = $this->planMemberIds($row['id']);
         }
@@ -243,11 +244,12 @@ final class StudyGroupRepository
     public function joinPlan(string $userId, string $groupId, string $planId): void
     {
         $this->requireMember($groupId, $userId);
-        $statement = $this->pdo->prepare('SELECT scheduled_at FROM study_group_plans WHERE id = ? AND group_id = ? LIMIT 1');
+        $statement = $this->pdo->prepare('SELECT scheduled_at, ended_at FROM study_group_plans WHERE id = ? AND group_id = ? LIMIT 1');
         $statement->execute([$planId, $groupId]);
-        $scheduled = $statement->fetchColumn();
-        if ($scheduled === false) throw new \DomainException('Discussion not found.');
-        if (strtotime($scheduled . ' UTC') > time()) throw new \DomainException('You can join when the discussion starts.');
+        $discussion = $statement->fetch();
+        if (!$discussion) throw new \DomainException('Discussion not found.');
+        if ($discussion['ended_at'] !== null) throw new \DomainException('This discussion has ended.');
+        if (strtotime($discussion['scheduled_at'] . ' UTC') > time()) throw new \DomainException('You can join when the discussion starts.');
         $join = $this->pdo->prepare('INSERT IGNORE INTO study_group_plan_members (plan_id, user_id) VALUES (?, ?)');
         $join->execute([$planId, $userId]);
     }
@@ -256,11 +258,12 @@ final class StudyGroupRepository
     {
         $this->pdo->beginTransaction();
         try {
-            $statement = $this->pdo->prepare('SELECT p.questions, p.question_count, p.current_question_index, p.scheduled_at, p.created_by FROM study_group_plans p JOIN study_groups g ON g.id = p.group_id WHERE p.id = ? AND p.group_id = ? FOR UPDATE');
+            $statement = $this->pdo->prepare('SELECT p.questions, p.question_count, p.current_question_index, p.scheduled_at, p.ended_at, p.created_by FROM study_group_plans p JOIN study_groups g ON g.id = p.group_id WHERE p.id = ? AND p.group_id = ? FOR UPDATE');
             $statement->execute([$planId, $groupId]);
             $plan = $statement->fetch();
             if (!$plan) throw new \DomainException('Discussion not found.');
             if ((string)$plan['created_by'] !== $userId) throw new \DomainException('Only the group creator can advance discussion questions.');
+            if ($plan['ended_at'] !== null) throw new \DomainException('This discussion has ended.');
             if (strtotime($plan['scheduled_at'] . ' UTC') > time()) throw new \DomainException('The discussion has not started yet.');
             $index = (int)$plan['current_question_index'] + 1;
             $questions = json_decode($plan['questions'], true) ?: [];
@@ -283,20 +286,35 @@ final class StudyGroupRepository
     public function publishDue(string $userId, string $groupId): bool
     {
         $this->requireOwner($groupId, $userId);
-        $query = $this->pdo->prepare("SELECT id FROM study_group_plans WHERE group_id = ? AND scheduled_at <= UTC_TIMESTAMP() AND current_question_index < 0 ORDER BY scheduled_at");
+        $query = $this->pdo->prepare("SELECT id FROM study_group_plans WHERE group_id = ? AND scheduled_at <= UTC_TIMESTAMP() AND ended_at IS NULL AND current_question_index < 0 ORDER BY scheduled_at");
         $query->execute([$groupId]);
         $published = false;
         foreach ($query->fetchAll(PDO::FETCH_COLUMN) as $planId) $published = $this->nextQuestion($userId, $groupId, (string)$planId) || $published;
         return $published;
     }
 
+    public function endDiscussion(string $userId, string $groupId, string $planId): void
+    {
+        $this->requireOwner($groupId, $userId);
+        $statement = $this->pdo->prepare('UPDATE study_group_plans SET ended_at = UTC_TIMESTAMP() WHERE id = ? AND group_id = ? AND created_by = ? AND current_question_index >= 0 AND ended_at IS NULL');
+        $statement->execute([$planId, $groupId, $userId]);
+        if ($statement->rowCount() > 0) return;
+        $check = $this->pdo->prepare('SELECT ended_at, current_question_index FROM study_group_plans WHERE id = ? AND group_id = ? AND created_by = ? LIMIT 1');
+        $check->execute([$planId, $groupId, $userId]);
+        $plan = $check->fetch();
+        if (!$plan) throw new \DomainException('Discussion not found.');
+        if ($plan['ended_at'] !== null) return;
+        throw new \DomainException('Start the discussion before ending it.');
+    }
+
     public function answer(string $userId, string $groupId, string $questionId, string $text, string $senderName): void
     {
         $this->requireMember($groupId, $userId);
-        $questionQuery = $this->pdo->prepare("SELECT m.id, m.plan_id, m.question_index, p.current_question_index FROM study_group_messages m JOIN study_group_plans p ON p.id = m.plan_id WHERE m.id = ? AND m.group_id = ? AND m.message_type = 'discussion_question' LIMIT 1");
+        $questionQuery = $this->pdo->prepare("SELECT m.id, m.plan_id, m.question_index, p.current_question_index, p.ended_at FROM study_group_messages m JOIN study_group_plans p ON p.id = m.plan_id WHERE m.id = ? AND m.group_id = ? AND m.message_type = 'discussion_question' LIMIT 1");
         $questionQuery->execute([$questionId, $groupId]);
         $question = $questionQuery->fetch();
         if (!$question) throw new \DomainException('This discussion question is no longer available.');
+        if ($question['ended_at'] !== null) throw new \DomainException('This discussion has ended.');
         $joined = $this->pdo->prepare('SELECT 1 FROM study_group_plan_members WHERE plan_id = ? AND user_id = ?');
         $joined->execute([$question['plan_id'], $userId]);
         if (!$joined->fetchColumn()) throw new \DomainException('Join this discussion before answering.');

@@ -70,6 +70,11 @@ export async function publishBackendNextQuestion(token, groupId, planId) {
   return result.published
 }
 
+export async function endBackendGroupDiscussion(token, groupId, planId) {
+  const result = await request(`/groups/plans/end?groupId=${encodeURIComponent(groupId)}`, token, { method: 'POST', body: { planId } })
+  return result.ended
+}
+
 export async function publishBackendDueQuestions(token, groupId) {
   const result = await request(`/groups/plans/publish-due?groupId=${encodeURIComponent(groupId)}`, token, { method: 'POST', body: {} })
   return result.published

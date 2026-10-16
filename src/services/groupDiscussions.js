@@ -87,6 +87,7 @@ export async function scheduleGroupDiscussion(token, group, userId, paper, sched
 
 export async function joinGroupDiscussion(token, group, userId, plan) {
   await requireMember(token, group, userId)
+  if (plan.endedAt) throw new Error('This discussion has ended.')
   if (new Date(plan.scheduledAt).getTime() > Date.now()) throw new Error('You can join when the discussion starts.')
   const transforms = [
     { transform: { document: documentName(`${planPath(group.id)}/${plan.id}`), fieldTransforms: [{ fieldPath: 'joinedMemberIds', appendMissingElements: { values: [{ stringValue: userId }] } }] } },
@@ -97,6 +98,7 @@ export async function joinGroupDiscussion(token, group, userId, plan) {
 
 export async function publishNextDiscussionQuestion(token, group, userId, plan) {
   if (group.ownerId !== userId) throw new Error('Only the group creator can advance discussion questions.')
+  if (plan.endedAt) throw new Error('This discussion has ended.')
   const index = Number(plan.currentQuestionIndex ?? -1) + 1
   const question = plan.questions?.[index]
   if (!question) return false
@@ -114,6 +116,7 @@ export async function answerDiscussionQuestion(token, group, userId, senderName,
   const current = await requireMember(token, group, userId)
   const plan = await getOptionalDocument(token, `${planPath(group.id)}/${question.planId}`)
   if (!plan || !(plan.joinedMemberIds || []).includes(userId)) throw new Error('Join this discussion before answering.')
+  if (plan.endedAt) throw new Error('This discussion has ended.')
   if (Number(plan.currentQuestionIndex) !== Number(question.questionIndex)) throw new Error('This is no longer the current question.')
   const id = `answer-${question.id}-${userId}`
   if (await getOptionalDocument(token, `${messagePath(group.id)}/${id}`)) throw new Error('You have already responded to this question.')
@@ -125,11 +128,24 @@ export async function answerDiscussionQuestion(token, group, userId, senderName,
   return current
 }
 
+export async function endGroupDiscussion(token, group, userId, plan) {
+  if (group.ownerId !== userId) throw new Error('Only the group creator can end this discussion.')
+  const current = await getOptionalDocument(token, `${planPath(group.id)}/${plan.id}`)
+  if (!current) throw new Error('Discussion not found.')
+  if (current.endedAt) return false
+  if (Number(current.currentQuestionIndex ?? -1) < 0) throw new Error('Start the discussion before ending it.')
+  await commitWrites(token, [{
+    update: { name: documentName(`${planPath(group.id)}/${plan.id}`), fields: encodeFields({ endedAt: new Date() }) },
+    updateMask: { fieldPaths: ['endedAt'] },
+  }])
+  return true
+}
+
 export async function publishDueDiscussionQuestions(token, group, userId, plans) {
   if (group.ownerId !== userId) return false
   let published = false
   for (const plan of plans) {
-    if (new Date(plan.scheduledAt).getTime() <= Date.now() && Number(plan.currentQuestionIndex ?? -1) < 0) {
+    if (!plan.endedAt && new Date(plan.scheduledAt).getTime() <= Date.now() && Number(plan.currentQuestionIndex ?? -1) < 0) {
       published = await publishNextDiscussionQuestion(token, group, userId, plan) || published
     }
   }

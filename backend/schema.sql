@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS study_group_plans (
   created_by BIGINT UNSIGNED NOT NULL,
   announcement_message_id BIGINT UNSIGNED NULL,
   current_question_index INT NOT NULL DEFAULT -1,
+  ended_at DATETIME NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY study_group_plans_schedule (group_id, scheduled_at),

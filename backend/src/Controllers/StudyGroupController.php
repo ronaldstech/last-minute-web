@@ -117,6 +117,16 @@ final class StudyGroupController
         return ['data' => ['published' => $published]];
     }
 
+    public function endDiscussion(Request $request): array
+    {
+        $user = $this->authenticate->user($request);
+        $groupId = $this->id($request->query('groupId'), 'group');
+        $input = $request->json();
+        $planId = $this->id((string)($input['planId'] ?? ''), 'discussion');
+        $this->domain(fn() => $this->groups->endDiscussion((string)$user['id'], $groupId, $planId));
+        return ['data' => ['ended' => true]];
+    }
+
     public function publishDue(Request $request): array
     {
         $user = $this->authenticate->user($request);
