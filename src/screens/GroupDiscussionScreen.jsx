@@ -2,7 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Icon from '../components/Icon.jsx'
 import ScreenHeader from '../components/ScreenHeader.jsx'
 import { listPapers } from '../services/studyRepository.js'
+import { listStudentPapers } from '../services/studentPapers.js'
 import { answerDiscussionQuestion, joinGroupDiscussion, listGroupMessages, listGroupPlans, postGroupMessage, publishDueDiscussionQuestions, publishNextDiscussionQuestion, scheduleGroupDiscussion } from '../services/groupDiscussions.js'
+import { answerBackendDiscussionQuestion, joinBackendGroupDiscussion, loadBackendGroupMessages, loadBackendGroupPlans, publishBackendDueQuestions, publishBackendNextQuestion, scheduleBackendGroupDiscussion, sendBackendGroupMessage } from '../services/groupsApi.js'
 import './GroupDiscussionScreen.css'
 
 function localInputDate(date) {
@@ -35,17 +37,24 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
   const scrollSnapshot = useRef(null)
   const initialScrollPending = useRef(true)
   const userId = session.userId
+  const usesBackend = session?.authProvider === 'php-mysql'
   const name = profile?.username || session.name || session.email || 'Student'
 
   const refresh = useCallback(async (active = () => true) => {
     try {
       const [nextPage, nextPlans] = await Promise.all([
-        listGroupMessages(session.idToken, group.id), listGroupPlans(session.idToken, group.id),
+        usesBackend ? loadBackendGroupMessages(session.token, group.id) : listGroupMessages(session.idToken, group.id),
+        usesBackend ? loadBackendGroupPlans(session.token, group.id) : listGroupPlans(session.idToken, group.id),
       ])
       if (!active()) return
-      const published = await publishDueDiscussionQuestions(session.idToken, group, userId, nextPlans)
+      const published = usesBackend
+        ? await publishBackendDueQuestions(session.token, group.id)
+        : await publishDueDiscussionQuestions(session.idToken, group, userId, nextPlans)
       const [freshMessages, freshPlans] = published
-        ? await Promise.all([listGroupMessages(session.idToken, group.id), listGroupPlans(session.idToken, group.id)])
+        ? await Promise.all([
+          usesBackend ? loadBackendGroupMessages(session.token, group.id) : listGroupMessages(session.idToken, group.id),
+          usesBackend ? loadBackendGroupPlans(session.token, group.id) : listGroupPlans(session.idToken, group.id),
+        ])
         : [nextPage, nextPlans]
       if (!olderCursorInitialized.current) {
         olderCursorInitialized.current = true
@@ -67,7 +76,7 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
     } finally {
       if (active()) setLoading(false)
     }
-  }, [session.idToken, group, userId])
+  }, [session.idToken, session.token, usesBackend, group, userId])
 
   useLayoutEffect(() => {
     const list = messageListRef.current
@@ -88,7 +97,9 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
     const list = messageListRef.current
     if (list) scrollSnapshot.current = { height: list.scrollHeight, top: list.scrollTop }
     try {
-      const page = await listGroupMessages(session.idToken, group.id, olderCursor.current)
+      const page = usesBackend
+        ? await loadBackendGroupMessages(session.token, group.id, olderCursor.current)
+        : await listGroupMessages(session.idToken, group.id, olderCursor.current)
       olderCursor.current = page.nextPageToken
       setHasOlderMessages(Boolean(page.nextPageToken))
       setMessages((current) => {
@@ -116,11 +127,12 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
   useEffect(() => {
     if (!scheduleOpen) return undefined
     let mounted = true
-    listPapers(session.idToken).then((items) => {
+    const paperRequest = usesBackend ? listStudentPapers(session.token) : listPapers(session.idToken)
+    paperRequest.then((items) => {
       if (mounted) { setPapers(items); setPaperId((current) => current || items[0]?.id || '') }
     }).catch((paperError) => { if (mounted) setError(paperError.message || 'Could not load papers.') })
     return () => { mounted = false }
-  }, [scheduleOpen, session.idToken])
+  }, [scheduleOpen, session.idToken, session.token, usesBackend])
 
   const planById = useMemo(() => new Map(plans.map((plan) => [plan.id, plan])), [plans])
 
@@ -129,7 +141,8 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
     if (!text.trim() || sending) return
     setSending(true)
     try {
-      await postGroupMessage(session.idToken, group, userId, name, text)
+      if (usesBackend) await sendBackendGroupMessage(session.token, group.id, text)
+      else await postGroupMessage(session.idToken, group, userId, name, text)
       setText('')
       await refresh()
     } catch (sendError) { showNotice(sendError.message || 'Could not send your message.') }
@@ -143,7 +156,8 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
     if (new Date(scheduledAt).getTime() <= Date.now()) return setError('Choose a future discussion time.')
     setScheduling(true)
     try {
-      await scheduleGroupDiscussion(session.idToken, group, userId, paper, scheduledAt)
+      if (usesBackend) await scheduleBackendGroupDiscussion(session.token, group.id, paper.id, scheduledAt)
+      else await scheduleGroupDiscussion(session.idToken, group, userId, paper, scheduledAt)
       setScheduleOpen(false)
       showNotice('Your group discussion has been scheduled.')
       await refresh()
@@ -153,14 +167,22 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
 
   const join = async (plan) => {
     setRespondingId(plan.id)
-    try { await joinGroupDiscussion(session.idToken, group, userId, plan); await refresh(); showNotice('You joined the discussion.') }
+    try {
+      if (usesBackend) await joinBackendGroupDiscussion(session.token, group.id, plan.id)
+      else await joinGroupDiscussion(session.idToken, group, userId, plan)
+      await refresh(); showNotice('You joined the discussion.')
+    }
     catch (joinError) { showNotice(joinError.message || 'Could not join this discussion.') }
     finally { setRespondingId('') }
   }
 
   const nextQuestion = async (plan) => {
     setRespondingId(plan.id)
-    try { await publishNextDiscussionQuestion(session.idToken, group, userId, plan); await refresh() }
+    try {
+      if (usesBackend) await publishBackendNextQuestion(session.token, group.id, plan.id)
+      else await publishNextDiscussionQuestion(session.idToken, group, userId, plan)
+      await refresh()
+    }
     catch (questionError) { showNotice(questionError.message || 'Could not post the next question.') }
     finally { setRespondingId('') }
   }
@@ -168,7 +190,8 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
   const submitAnswer = async (message) => {
     setRespondingId(message.id)
     try {
-      await answerDiscussionQuestion(session.idToken, group, userId, name, message, answerDrafts[message.id] || '')
+      if (usesBackend) await answerBackendDiscussionQuestion(session.token, group.id, message.id, answerDrafts[message.id] || '')
+      else await answerDiscussionQuestion(session.idToken, group, userId, name, message, answerDrafts[message.id] || '')
       setAnswerDrafts((current) => ({ ...current, [message.id]: '' }))
       await refresh()
       showNotice('Your response was posted.')

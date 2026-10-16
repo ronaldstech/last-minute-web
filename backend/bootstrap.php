@@ -10,6 +10,7 @@ use LastMinute\Controllers\AdminPaperController;
 use LastMinute\Controllers\UserPaperController;
 use LastMinute\Controllers\PracticeAnswerController;
 use LastMinute\Controllers\WalletController;
+use LastMinute\Controllers\StudyGroupController;
 use LastMinute\Http\Request;
 use LastMinute\Middleware\Authenticate;
 use LastMinute\Repositories\SessionRepository;
@@ -49,6 +50,12 @@ function last_minute_router(): Router
             return $wallet->{$method}($request);
         };
     };
+    $groupEndpoint = static function (string $method) use ($pdo, $authenticate): callable {
+        return static function (Request $request) use ($method, $pdo, $authenticate): array {
+            $groups = new StudyGroupController(new \LastMinute\Repositories\StudyGroupRepository($pdo), $authenticate);
+            return $groups->{$method}($request);
+        };
+    };
     $router = new Router();
     $router->add('POST', '/auth/register', [$controller, 'register']);
     $router->add('POST', '/auth/login', [$controller, 'login']);
@@ -75,6 +82,19 @@ function last_minute_router(): Router
     $router->add('GET', '/wallet/operators', $walletEndpoint('operators'));
     $router->add('POST', '/wallet/transactions', $walletEndpoint('createTransaction'));
     $router->add('POST', '/wallet/transactions/verify', $walletEndpoint('verifyTransaction'));
+    $router->add('GET', '/groups', $groupEndpoint('index'));
+    $router->add('POST', '/groups', $groupEndpoint('create'));
+    $router->add('GET', '/groups/invitations', $groupEndpoint('invitations'));
+    $router->add('POST', '/groups/invitations', $groupEndpoint('invite'));
+    $router->add('POST', '/groups/invitations/respond', $groupEndpoint('respond'));
+    $router->add('GET', '/groups/messages', $groupEndpoint('messages'));
+    $router->add('POST', '/groups/messages', $groupEndpoint('sendMessage'));
+    $router->add('GET', '/groups/plans', $groupEndpoint('plans'));
+    $router->add('POST', '/groups/plans', $groupEndpoint('schedule'));
+    $router->add('POST', '/groups/plans/join', $groupEndpoint('joinPlan'));
+    $router->add('POST', '/groups/plans/next', $groupEndpoint('nextQuestion'));
+    $router->add('POST', '/groups/plans/publish-due', $groupEndpoint('publishDue'));
+    $router->add('POST', '/groups/plans/answer', $groupEndpoint('answer'));
     return $router;
 }
 

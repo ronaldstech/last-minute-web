@@ -7,7 +7,7 @@ This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backen
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. Configure database credentials in `config.php` (copy `config.php.example`) or use `.env` for local development. PHP environment variables still take precedence when the host provides them.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql` through `migrations/011_add_wallet_transactions.sql` once, in order.
+   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql` through `migrations/012_add_study_groups.sql` once, in order.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
@@ -57,6 +57,16 @@ Errors use `{ "message": "..." }` JSON.
 | `GET` | `/backend/public/wallet/operators` | Bearer token | Load mobile money operators from the existing payment service through the backend. |
 | `POST` | `/backend/public/wallet/transactions` | Bearer token | Create and initialize a top-up using `{ "packId", "operatorId", "operatorName", "mobile" }`. Coin amounts and MWK charges are fixed by the backend pack catalog. |
 | `POST` | `/backend/public/wallet/transactions/verify` | Bearer token | Verify `{ "chargeId" }` with the payment service and credit the authenticated user's MySQL balance once after payment succeeds. |
+| `GET` / `POST` | `/backend/public/groups` | Bearer token | List the current user's groups or create `{ "name", "course", "description" }`; the creator becomes the first member. |
+| `GET` | `/backend/public/groups/invitations` | Bearer token | List pending invitations for the current account. |
+| `POST` | `/backend/public/groups/invitations` | Group owner bearer token | Invite an existing account with `{ "groupId", "email" }`. |
+| `POST` | `/backend/public/groups/invitations/respond` | Invited user's bearer token | Accept or decline with `{ "invitationId", "accept" }`. Accepting also adds group membership. |
+| `GET` / `POST` | `/backend/public/groups/messages?groupId={id}` | Group member bearer token | Read paged discussion messages or post `{ "text" }`. Older-page requests include `before={messageId}`. |
+| `GET` / `POST` | `/backend/public/groups/plans?groupId={id}` | Group member / owner bearer token | List scheduled discussions or create one with `{ "paperId", "scheduledAt" }`. Scheduling is owner-only. |
+| `POST` | `/backend/public/groups/plans/join?groupId={id}` | Group member bearer token | Join a started discussion with `{ "planId" }`. |
+| `POST` | `/backend/public/groups/plans/next?groupId={id}` | Group owner bearer token | Publish the next question for `{ "planId" }`. |
+| `POST` | `/backend/public/groups/plans/publish-due?groupId={id}` | Group owner bearer token | Automatically publish the first question of due plans. |
+| `POST` | `/backend/public/groups/plans/answer?groupId={id}` | Joined discussion member bearer token | Post `{ "questionId", "answer" }` once for the current discussion question. |
 | `POST` | `/rt/last_minute/backend/public/marking.php` | Student bearer token | Mark one question in a `questions` array. The endpoint resolves the user from the shared backend session and stores every result or provider failure in `marking_usage_events`. Supply `paperId` and a `paper` snapshot with title, course, and year for useful analytics. |
 | `PATCH` | `/backend/public/admin/users?id={id}` | Admin bearer token | Set `{ "isAdmin": true|false }` or `{ "isSuspended": true|false }`. |
 | `POST` | `/backend/public/admin/users/gift?id={id}` | Admin bearer token | Add `{ "amount": 50 }` free coins to an account. |
@@ -71,7 +81,7 @@ On Hostinger, create `backend/config.php` from `config.php.example` and enter th
 
 Admin user routes resolve the current bearer session and read the administrator role from MySQL on each request. Suspended accounts cannot sign in or use an existing session. The user list returns only public account fields and never includes password hashes.
 
-The AI marking endpoint uses this backend's `bootstrap.php`, database settings, and active bearer sessions to record per-question usage. Run migration `010_add_marking_usage_events.sql` before using it against an existing database. The public `marking.php` wrapper exposes the marker while the backend root `.htaccess` continues to block direct access to private backend files. Run migration `011_add_wallet_transactions.sql` on existing databases before opening the Coins screen.
+The AI marking endpoint uses this backend's `bootstrap.php`, database settings, and active bearer sessions to record per-question usage. Run migration `010_add_marking_usage_events.sql` before using it against an existing database. The public `marking.php` wrapper exposes the marker while the backend root `.htaccess` continues to block direct access to private backend files. Run migration `011_add_wallet_transactions.sql` on existing databases before opening the Coins screen, and `012_add_study_groups.sql` before using Study groups.
 
 To grant the first administrator, update the account directly in MySQL after registering it: `UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';`. Replace the address with the registered account email.
 

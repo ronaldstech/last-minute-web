@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import ScreenHeader from '../components/ScreenHeader.jsx'
 import { createStudyGroup, listMyGroups, listMyInvitations, respondToInvitation } from '../services/studyRepository.js'
+import { createBackendGroup, inviteToBackendGroup, loadGroupInvitations, loadGroups, respondToBackendInvitation } from '../services/groupsApi.js'
 import GroupDiscussionScreen from './GroupDiscussionScreen.jsx'
+import './GroupsScreen.css'
 
 function readActiveGroup(userId) {
   try {
@@ -19,9 +21,13 @@ export default function GroupsScreen({ session, profile, showNotice }) {
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [respondingId, setRespondingId] = useState('')
+  const [inviteGroupId, setInviteGroupId] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
   const [form, setForm] = useState({ name: '', course: '', description: '' })
   const [activeGroup, setActiveGroup] = useState(() => readActiveGroup(session.userId))
   const userId = session.userId
+  const usesBackend = session?.authProvider === 'php-mysql'
 
   useEffect(() => {
     try {
@@ -34,27 +40,37 @@ export default function GroupsScreen({ session, profile, showNotice }) {
   const refresh = useCallback(() => {
     setLoading(true)
     setError('')
+    if (usesBackend) {
+      return Promise.all([loadGroups(session.token), loadGroupInvitations(session.token)])
+        .then(([myGroups, myInvitations]) => { setGroups(myGroups); setInvitations(myInvitations) })
+        .catch((loadError) => setError(loadError.message || 'Could not load study groups.'))
+        .finally(() => setLoading(false))
+    }
     return Promise.all([listMyGroups(session.idToken, userId), listMyInvitations(session.idToken, userId)])
       .then(([myGroups, myInvitations]) => { setGroups(myGroups); setInvitations(myInvitations) })
       .catch((loadError) => setError(loadError.message || 'Could not load study groups.'))
       .finally(() => setLoading(false))
-  }, [session.idToken, userId])
+  }, [session.idToken, session.token, usesBackend, userId])
 
   useEffect(() => {
     let active = true
-    Promise.all([listMyGroups(session.idToken, userId), listMyInvitations(session.idToken, userId)])
+    const fetchGroups = usesBackend
+      ? Promise.all([loadGroups(session.token), loadGroupInvitations(session.token)])
+      : Promise.all([listMyGroups(session.idToken, userId), listMyInvitations(session.idToken, userId)])
+    fetchGroups
       .then(([myGroups, myInvitations]) => { if (active) { setGroups(myGroups); setInvitations(myInvitations) } })
       .catch((loadError) => { if (active) setError(loadError.message || 'Could not load study groups.') })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [session.idToken, userId])
+  }, [session.idToken, session.token, usesBackend, userId])
 
   const createGroup = async (event) => {
     event.preventDefault()
     if (!form.name.trim()) return
     setSaving(true)
     try {
-      await createStudyGroup(session.idToken, userId, profile?.username || session.name || session.email, form)
+      if (usesBackend) await createBackendGroup(session.token, form)
+      else await createStudyGroup(session.idToken, userId, profile?.username || session.name || session.email, form)
       setForm({ name: '', course: '', description: '' })
       setCreating(false)
       showNotice('Your study group has been created.')
@@ -69,13 +85,30 @@ export default function GroupsScreen({ session, profile, showNotice }) {
   const respond = async (invitation, accept) => {
     setRespondingId(invitation.id)
     try {
-      await respondToInvitation(session.idToken, invitation, userId, accept)
+      if (usesBackend) await respondToBackendInvitation(session.token, invitation.id, accept)
+      else await respondToInvitation(session.idToken, invitation, userId, accept)
       showNotice(accept ? `You joined ${invitation.groupName || 'the group'}.` : 'Invitation declined.')
       await refresh()
     } catch (respondError) {
       showNotice(respondError.message || 'Could not update the invitation.')
     } finally {
       setRespondingId('')
+    }
+  }
+
+  const invite = async (event) => {
+    event.preventDefault()
+    if (!inviteGroupId || !inviteEmail.trim()) return
+    setInviting(true)
+    try {
+      await inviteToBackendGroup(session.token, inviteGroupId, inviteEmail.trim())
+      setInviteEmail('')
+      setInviteGroupId('')
+      showNotice('Invitation sent.')
+    } catch (inviteError) {
+      showNotice(inviteError.message || 'Could not send this invitation.')
+    } finally {
+      setInviting(false)
     }
   }
 
@@ -92,7 +125,12 @@ export default function GroupsScreen({ session, profile, showNotice }) {
       {invitations.length > 0 && <section className="group-data-section"><div className="groups-subhead"><div><span className="section-kicker">WAITING FOR YOUR RESPONSE</span><h2>Invitations <span className="group-count">{invitations.length}</span></h2></div><button className="notification-refresh" onClick={refresh}><Icon name="clock" size={15} /> Refresh</button></div><div className="group-list">{invitations.map((invitation) => <article className="group-card invitation-card" key={invitation.id}><span className="group-subject-icon violet"><Icon name="users" size={20} /></span><div className="group-info"><span className="section-kicker">GROUP INVITATION</span><strong>{invitation.groupName || 'Study group'}</strong><small>Invited by {invitation.inviterName || 'a student'}</small></div><div className="invitation-actions"><button className="join-button" disabled={respondingId === invitation.id} onClick={() => respond(invitation, false)}>Decline</button><button className="join-button accept" disabled={respondingId === invitation.id} onClick={() => respond(invitation, true)}>Join group <Icon name="right" size={14} /></button></div></article>)}</div></section>}
 
       <section className="group-data-section"><div className="groups-subhead"><div><span className="section-kicker">YOUR COMMUNITY</span><h2>Your groups <span className="group-count">{groups.length}</span></h2></div><button className="notification-refresh" onClick={refresh}><Icon name="clock" size={15} /> Refresh</button></div>
-        {groups.length ? <div className="group-list">{groups.map((group) => <article className="group-card" key={group.id}><span className="group-subject-icon mint"><Icon name="users" size={20} /></span><div className="group-info"><span className="section-kicker">{group.course || 'STUDY GROUP'}</span><strong>{group.name || 'Study group'}</strong><small>{group.memberIds?.length || 0} members · Created by {group.ownerName || 'a student'}</small>{group.description && <p className="group-description">{group.description}</p>}</div><button className="join-button" onClick={() => setActiveGroup(group)}>Open discussion <Icon name="right" size={14} /></button></article>)}</div> : <div className="empty-panel groups-empty"><span className="empty-icon"><Icon name="users" size={24} /></span><h3>You haven’t joined a group yet</h3><p>Create a group or accept an invitation to study together.</p><button className="primary-button" onClick={() => setCreating(true)}><Icon name="plus" size={15} /> Create a group</button></div>}
+        {groups.length ? <div className="group-list">{groups.map((group) => <article className="group-card" key={group.id}>
+          <span className="group-subject-icon mint"><Icon name="users" size={20} /></span>
+          <div className="group-info"><span className="section-kicker">{group.course || 'STUDY GROUP'}</span><strong>{group.name || 'Study group'}</strong><small>{group.memberIds?.length || 0} members · Created by {group.ownerName || 'a student'}</small>{group.description && <p className="group-description">{group.description}</p>}</div>
+          <div className="group-card-actions"><button className="join-button" onClick={() => setActiveGroup(group)}>Open discussion <Icon name="right" size={14} /></button>{usesBackend && group.ownerId === userId && <button className="join-button group-invite-toggle" onClick={() => { setInviteGroupId((current) => current === group.id ? '' : group.id); setInviteEmail('') }}>{inviteGroupId === group.id ? 'Close invite' : 'Invite member'}</button>}</div>
+          {inviteGroupId === group.id && <form className="group-invite-form" onSubmit={invite}><label>Student email<input type="email" required maxLength="254" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="student@example.com" /></label><button className="primary-button" disabled={inviting}>{inviting ? 'Sending…' : 'Send invite'}</button></form>}
+        </article>)}</div> : <div className="empty-panel groups-empty"><span className="empty-icon"><Icon name="users" size={24} /></span><h3>You haven’t joined a group yet</h3><p>Create a group or accept an invitation to study together.</p><button className="primary-button" onClick={() => setCreating(true)}><Icon name="plus" size={15} /> Create a group</button></div>}
       </section>
     </>}
   </>
