@@ -12,4 +12,7 @@ return [
     // Optional: keep Groq settings here if marking.php is configured to read this file.
     'GROQ_API_KEY' => '',
     'GROQ_MODEL' => 'openai/gpt-oss-20b',
+
+    // Existing PHP PayChangu proxy endpoints used for wallet top-ups.
+    'PAYMENT_API_BASE_URL' => 'https://apexspacemw.com/rt/last_minute/paychangu',
 ];

@@ -7,7 +7,7 @@ This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backen
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. Configure database credentials in `config.php` (copy `config.php.example`) or use `.env` for local development. PHP environment variables still take precedence when the host provides them.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql`, `migrations/002_add_academic_structure.sql`, `migrations/003_add_academic_aliases.sql`, `migrations/004_add_user_study_profile.sql`, `migrations/005_add_papers.sql`, `migrations/006_add_paper_programmes.sql`, `migrations/007_add_paper_department.sql`, `migrations/008_add_user_paper_access.sql`, `migrations/009_add_practice_answer_submissions.sql`, and `migrations/010_add_marking_usage_events.sql` once, in order.
+   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql` through `migrations/011_add_wallet_transactions.sql` once, in order.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
@@ -53,6 +53,10 @@ Errors use `{ "message": "..." }` JSON.
 | `DELETE` | `/backend/public/papers/saved?id={id}` | Student bearer token | Remove a paper from the account's saved list. |
 | `POST` | `/backend/public/papers/unlock?id={id}` | Student bearer token | Spend 20 coins once to unlock a paper. Free coins are used before purchased coins; repeat requests do not charge again. Returns the unlocked paper and updated account balances. |
 | `POST` | `/backend/public/papers/answers` | Student bearer token | Submit `{ "paperId": "123", "questionKey": "question-id.part-id", "answer": "..." }` for an unlocked paper. The key must identify a real top-level question or nested subquestion. Stores the latest answer per prompt and queues it with `pending` status for marking. |
+| `GET` | `/backend/public/wallet` | Bearer token | Read the current MySQL coin balances and latest 100 wallet transactions. |
+| `GET` | `/backend/public/wallet/operators` | Bearer token | Load mobile money operators from the existing payment service through the backend. |
+| `POST` | `/backend/public/wallet/transactions` | Bearer token | Create and initialize a top-up using `{ "packId", "operatorId", "operatorName", "mobile" }`. Coin amounts and MWK charges are fixed by the backend pack catalog. |
+| `POST` | `/backend/public/wallet/transactions/verify` | Bearer token | Verify `{ "chargeId" }` with the payment service and credit the authenticated user's MySQL balance once after payment succeeds. |
 | `POST` | `/rt/last_minute/backend/public/marking.php` | Student bearer token | Mark one question in a `questions` array. The endpoint resolves the user from the shared backend session and stores every result or provider failure in `marking_usage_events`. Supply `paperId` and a `paper` snapshot with title, course, and year for useful analytics. |
 | `PATCH` | `/backend/public/admin/users?id={id}` | Admin bearer token | Set `{ "isAdmin": true|false }` or `{ "isSuspended": true|false }`. |
 | `POST` | `/backend/public/admin/users/gift?id={id}` | Admin bearer token | Add `{ "amount": 50 }` free coins to an account. |
@@ -63,11 +67,11 @@ Errors use `{ "message": "..." }` JSON.
 
 Signup accepts `{ "name", "email", "phone", "password" }`. Login accepts `{ "email", "password" }`. Passwords use PHP's `password_hash` and `password_verify`. The client receives a random 256-bit token; MySQL stores only its SHA-256 digest. Sessions expire after 30 days.
 
-On Hostinger, create `backend/config.php` from `config.php.example` and enter the database name, user, password, and host shown in hPanel. The backend `.htaccess` denies web access to this private PHP configuration file. Do not commit the real config file.
+On Hostinger, create `backend/config.php` from `config.php.example` and enter the database name, user, password, and host shown in hPanel. The backend `.htaccess` denies web access to this private PHP configuration file. Do not commit the real config file. The wallet calls the existing PayChangu PHP endpoints server-to-server; `PAYMENT_API_BASE_URL` sets their base URL.
 
 Admin user routes resolve the current bearer session and read the administrator role from MySQL on each request. Suspended accounts cannot sign in or use an existing session. The user list returns only public account fields and never includes password hashes.
 
-The AI marking endpoint uses this backend's `bootstrap.php`, database settings, and active bearer sessions to record per-question usage. Run migration `010_add_marking_usage_events.sql` before using it against an existing database. The public `marking.php` wrapper exposes the marker while the backend root `.htaccess` continues to block direct access to private backend files.
+The AI marking endpoint uses this backend's `bootstrap.php`, database settings, and active bearer sessions to record per-question usage. Run migration `010_add_marking_usage_events.sql` before using it against an existing database. The public `marking.php` wrapper exposes the marker while the backend root `.htaccess` continues to block direct access to private backend files. Run migration `011_add_wallet_transactions.sql` on existing databases before opening the Coins screen.
 
 To grant the first administrator, update the account directly in MySQL after registering it: `UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';`. Replace the address with the registered account email.
 

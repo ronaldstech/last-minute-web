@@ -9,6 +9,7 @@ use LastMinute\Controllers\ProfileController;
 use LastMinute\Controllers\AdminPaperController;
 use LastMinute\Controllers\UserPaperController;
 use LastMinute\Controllers\PracticeAnswerController;
+use LastMinute\Controllers\WalletController;
 use LastMinute\Http\Request;
 use LastMinute\Middleware\Authenticate;
 use LastMinute\Repositories\SessionRepository;
@@ -40,6 +41,14 @@ function last_minute_router(): Router
     $adminPapers = new AdminPaperController(new \LastMinute\Repositories\AdminPaperRepository($pdo), $authenticate);
     $userPapers = new UserPaperController(new \LastMinute\Repositories\UserPaperRepository($pdo), $authenticate);
     $practiceAnswers = new PracticeAnswerController(new \LastMinute\Repositories\PracticeAnswerRepository($pdo), $authenticate);
+    // Load wallet classes only when a wallet route is called, so a partial
+    // wallet deployment cannot take unrelated account and paper routes down.
+    $walletEndpoint = static function (string $method) use ($pdo, $authenticate): callable {
+        return static function (Request $request) use ($method, $pdo, $authenticate): array {
+            $wallet = new WalletController(new \LastMinute\Repositories\WalletRepository($pdo), $authenticate, new \LastMinute\Services\PaymentGateway());
+            return $wallet->{$method}($request);
+        };
+    };
     $router = new Router();
     $router->add('POST', '/auth/register', [$controller, 'register']);
     $router->add('POST', '/auth/login', [$controller, 'login']);
@@ -62,6 +71,10 @@ function last_minute_router(): Router
     $router->add('POST', '/papers/answers', [$practiceAnswers, 'submit']);
     $router->add('PATCH', '/profile', [$profile, 'update']);
     $router->add('GET', '/academics', [$adminAcademics, 'catalog']);
+    $router->add('GET', '/wallet', $walletEndpoint('show'));
+    $router->add('GET', '/wallet/operators', $walletEndpoint('operators'));
+    $router->add('POST', '/wallet/transactions', $walletEndpoint('createTransaction'));
+    $router->add('POST', '/wallet/transactions/verify', $walletEndpoint('verifyTransaction'));
     return $router;
 }
 
