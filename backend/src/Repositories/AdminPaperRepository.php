@@ -12,29 +12,29 @@ final class AdminPaperRepository
 
     public function page(int $afterId, int $limit): array
     {
-        $query = $this->pdo->prepare('SELECT id, title, course, year, semester, question_count, created_at, updated_at FROM papers WHERE id > ? ORDER BY id ASC LIMIT ' . (int)($limit + 1));
+        $query = $this->pdo->prepare('SELECT id, title, course, year, semester, department_id, department_name, programme_assignments, question_count, created_at, updated_at FROM papers WHERE id > ? ORDER BY id ASC LIMIT ' . (int)($limit + 1));
         $query->execute([$afterId]);
         return $query->fetchAll();
     }
 
     public function find(string $id): ?array
     {
-        $query = $this->pdo->prepare('SELECT id, title, course, year, semester, questions, question_count, created_at, updated_at FROM papers WHERE id = ? LIMIT 1');
+        $query = $this->pdo->prepare('SELECT id, title, course, year, semester, department_id, department_name, questions, programme_assignments, question_count, created_at, updated_at FROM papers WHERE id = ? LIMIT 1');
         $query->execute([$id]);
         return $query->fetch() ?: null;
     }
 
     public function create(array $paper): array
     {
-        $query = $this->pdo->prepare('INSERT INTO papers (title, course, year, semester, questions, question_count) VALUES (?, ?, ?, ?, ?, ?)');
-        $query->execute([$paper['title'], $paper['course'], $paper['year'], $paper['semester'], $paper['questions'], $paper['questionCount']]);
+        $query = $this->pdo->prepare('INSERT INTO papers (title, course, year, semester, department_id, department_name, questions, programme_assignments, question_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $query->execute([$paper['title'], $paper['course'], $paper['year'], $paper['semester'], $paper['departmentId'], $paper['departmentName'], $paper['questions'], $paper['programmeAssignments'], $paper['questionCount']]);
         return $this->find((string)$this->pdo->lastInsertId());
     }
 
     public function update(string $id, array $paper): ?array
     {
-        $query = $this->pdo->prepare('UPDATE papers SET title = ?, course = ?, year = ?, semester = ?, questions = ?, question_count = ? WHERE id = ?');
-        $query->execute([$paper['title'], $paper['course'], $paper['year'], $paper['semester'], $paper['questions'], $paper['questionCount'], $id]);
+        $query = $this->pdo->prepare('UPDATE papers SET title = ?, course = ?, year = ?, semester = ?, department_id = ?, department_name = ?, questions = ?, programme_assignments = ?, question_count = ? WHERE id = ?');
+        $query->execute([$paper['title'], $paper['course'], $paper['year'], $paper['semester'], $paper['departmentId'], $paper['departmentName'], $paper['questions'], $paper['programmeAssignments'], $paper['questionCount'], $id]);
         return $this->find($id);
     }
 
@@ -45,6 +45,20 @@ final class AdminPaperRepository
         return $query->rowCount() > 0;
     }
 
+    public function programmeInDepartment(string $departmentId, string $programmeId): ?array
+    {
+        $query = $this->pdo->prepare('SELECT d.id AS departmentId, d.name AS departmentName, p.id AS programmeId, p.name AS programmeName FROM academic_programmes p JOIN academic_departments d ON d.id = p.parent_id WHERE d.id = ? AND p.id = ? LIMIT 1');
+        $query->execute([$departmentId, $programmeId]);
+        return $query->fetch() ?: null;
+    }
+
+    public function department(string $departmentId): ?array
+    {
+        $query = $this->pdo->prepare('SELECT id, name FROM academic_departments WHERE id = ? LIMIT 1');
+        $query->execute([$departmentId]);
+        return $query->fetch() ?: null;
+    }
+
     public static function serialize(array $row, bool $includeQuestions = false): array
     {
         $paper = [
@@ -53,7 +67,10 @@ final class AdminPaperRepository
             'course' => $row['course'],
             'year' => $row['year'],
             'semester' => $row['semester'],
+            'departmentId' => isset($row['department_id']) ? (string)$row['department_id'] : null,
+            'departmentName' => $row['department_name'] ?? null,
             'questionCount' => (int)$row['question_count'],
+            'programmeAssignments' => self::decodeAssignments($row['programme_assignments'] ?? null),
             'createdAt' => $row['created_at'],
             'updatedAt' => $row['updated_at'],
         ];
@@ -61,6 +78,15 @@ final class AdminPaperRepository
             $questions = json_decode((string)$row['questions'], true);
             $paper['questions'] = is_array($questions) ? $questions : [];
         }
+        $assignments = $paper['programmeAssignments'];
+        if (!$paper['departmentId'] && isset($assignments[0]['departmentId'])) $paper['departmentId'] = (string)$assignments[0]['departmentId'];
+        if (!$paper['departmentName'] && isset($assignments[0]['departmentName'])) $paper['departmentName'] = $assignments[0]['departmentName'];
         return $paper;
+    }
+
+    private static function decodeAssignments(mixed $encoded): array
+    {
+        $assignments = json_decode((string)($encoded ?? ''), true);
+        return is_array($assignments) ? $assignments : [];
     }
 }

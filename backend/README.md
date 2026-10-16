@@ -7,7 +7,7 @@ This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backen
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. In the htdocs copy, create `.env` from `.env.example`; set MySQL credentials if they differ from XAMPP defaults.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql`, `migrations/002_add_academic_structure.sql`, `migrations/003_add_academic_aliases.sql`, `migrations/004_add_user_study_profile.sql`, and `migrations/005_add_papers.sql` once, in order.
+   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql`, `migrations/002_add_academic_structure.sql`, `migrations/003_add_academic_aliases.sql`, `migrations/004_add_user_study_profile.sql`, `migrations/005_add_papers.sql`, `migrations/006_add_paper_programmes.sql`, and `migrations/007_add_paper_department.sql` once, in order.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
@@ -44,8 +44,8 @@ Errors use `{ "message": "..." }` JSON.
 | `POST` | `/backend/public/auth/logout` | Bearer token | Revoke the current session. |
 | `GET` | `/backend/public/admin/users?limit=40&search=&cursor=` | Admin bearer token | Search and page through SQL accounts. Returns `users` and `nextCursor`. |
 | `GET` | `/backend/public/admin/papers?limit=40&cursor=` | Admin bearer token | Page through SQL papers. Returns `papers` and `nextCursor`. Add `id={id}` to load full paper content. |
-| `POST` | `/backend/public/admin/papers` | Admin bearer token | Create a paper with `{ "title", "course", "year", "semester", "questions": [] }`. Returns the saved `paper`. |
-| `PATCH` | `/backend/public/admin/papers?id={id}` | Admin bearer token | Replace a paper's metadata and question content. Returns the updated `paper`. |
+| `POST` | `/backend/public/admin/papers` | Admin bearer token | Create a paper with `{ "title": "quiz1|midsemester|quiz2|quiz3|endsemester|project|presentation|end-semester|sample", "course", "year", "semester": "1|2", "departmentId", "programmeAssignments": [{ "programmeId", "studyYear": 1 }], "questions": [] }`. Exam year must be 2015 through the current year. Returns the saved `paper`. |
+| `PATCH` | `/backend/public/admin/papers?id={id}` | Admin bearer token | Replace a paper's metadata, department, programme assignments, and question content. Returns the updated `paper`. |
 | `DELETE` | `/backend/public/admin/papers?id={id}` | Admin bearer token | Delete a paper from the SQL library. |
 | `PATCH` | `/backend/public/admin/users?id={id}` | Admin bearer token | Set `{ "isAdmin": true|false }` or `{ "isSuspended": true|false }`. |
 | `POST` | `/backend/public/admin/users/gift?id={id}` | Admin bearer token | Add `{ "amount": 50 }` free coins to an account. |

@@ -20,6 +20,9 @@ final class AcademicStructureRepository
     public function page(string $type, ?string $parentId): array
     {
         $config = self::TABLES[$type];
+        if ($type === 'departments' && $parentId === null) {
+            return $this->pdo->query('SELECT d.id, d.name, d.alias, s.name AS schoolName, c.name AS collegeName FROM academic_departments d JOIN academic_schools s ON s.id = d.parent_id JOIN academic_colleges c ON c.id = s.parent_id ORDER BY c.name, s.name, d.name, d.id')->fetchAll();
+        }
         if ($config['parent'] === null) {
             return $this->pdo->query("SELECT id, name, alias FROM {$config['table']} ORDER BY name, id")->fetchAll();
         }

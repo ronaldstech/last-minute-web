@@ -31,7 +31,8 @@ final class AdminAcademicController
         $type = $request->query('type');
         if (!AcademicStructureRepository::validType($type)) throw new ApiException('Choose colleges, schools, departments, or programmes.', 422);
         $parentId = $request->query('parentId');
-        if (AcademicStructureRepository::requiresParent($type) && !preg_match('/^[1-9][0-9]{0,18}$/', $parentId)) throw new ApiException('A valid parent ID is required.', 422);
+        if (AcademicStructureRepository::requiresParent($type) && $parentId === '' && $type !== 'departments') throw new ApiException('A valid parent ID is required.', 422);
+        if ($parentId !== '' && !preg_match('/^[1-9][0-9]{0,18}$/', $parentId)) throw new ApiException('A valid parent ID is required.', 422);
         return ['data' => ['records' => $this->academics->page($type, $parentId ?: null)]];
     }
 

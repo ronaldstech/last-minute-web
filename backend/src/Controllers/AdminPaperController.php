@@ -12,6 +12,8 @@ use LastMinute\Repositories\AdminPaperRepository;
 /** Admin-only paper library CRUD handlers. */
 final class AdminPaperController
 {
+    private const EXAM_TYPES = ['quiz1', 'midsemester', 'quiz2', 'quiz3', 'endsemester', 'project', 'presentation', 'end-semester', 'sample'];
+
     public function __construct(private readonly AdminPaperRepository $papers, private readonly Authenticate $authenticate) {}
 
     public function index(Request $request): array
@@ -64,21 +66,54 @@ final class AdminPaperController
     private function validatedPaper(array $input): array
     {
         $title = trim(is_string($input['title'] ?? null) ? $input['title'] : '');
-        if ($title === '' || mb_strlen($title) > 240) throw new ApiException('Paper title must contain 1 to 240 characters.', 422);
+        if (!in_array($title, self::EXAM_TYPES, true)) throw new ApiException('Choose a valid exam type.', 422);
+        $year = $this->text($input['year'] ?? '', 'Exam year', 4);
+        $currentYear = (int)date('Y');
+        if (!preg_match('/^\d{4}$/', $year) || (int)$year < 2015 || (int)$year > $currentYear) throw new ApiException("Exam year must be from 2015 through {$currentYear}.", 422);
+        $semester = $this->text($input['semester'] ?? '', 'Semester', 2);
+        if (!in_array($semester, ['1', '2'], true)) throw new ApiException('Semester must be 1 or 2.', 422);
+        $departmentId = is_scalar($input['departmentId'] ?? null) ? (string)$input['departmentId'] : '';
+        if (!preg_match('/^[1-9][0-9]{0,18}$/', $departmentId)) throw new ApiException('Choose a valid department.', 422);
+        $department = $this->papers->department($departmentId);
+        if (!$department) throw new ApiException('The selected department no longer exists.', 422);
         $questions = $input['questions'] ?? [];
         if (!is_array($questions) || !array_is_list($questions)) throw new ApiException('Paper questions must be a list.', 422);
         if (count($questions) > 1000) throw new ApiException('A paper cannot contain more than 1000 questions.', 422);
         foreach ($questions as $question) {
             if (!is_array($question)) throw new ApiException('Each paper question must be an object.', 422);
         }
+        $assignments = $input['programmeAssignments'] ?? [];
+        if (!is_array($assignments) || !array_is_list($assignments)) throw new ApiException('Programme assignments must be a list.', 422);
+        if (count($assignments) > 100) throw new ApiException('A paper cannot have more than 100 programme assignments.', 422);
+        $canonicalAssignments = [];
+        $seenProgrammes = [];
+        foreach ($assignments as $assignment) {
+            if (!is_array($assignment)) throw new ApiException('Each programme assignment must be an object.', 422);
+            $programmeId = is_scalar($assignment['programmeId'] ?? null) ? (string)$assignment['programmeId'] : '';
+            if (!preg_match('/^[1-9][0-9]{0,18}$/', $programmeId)) throw new ApiException('Choose a valid programme.', 422);
+            $academicRecord = $this->papers->programmeInDepartment($departmentId, $programmeId);
+            if (!$academicRecord) throw new ApiException('A selected programme no longer belongs to its department.', 422);
+            if (isset($seenProgrammes[$programmeId])) throw new ApiException('A programme can only be added once to a paper.', 422);
+            $seenProgrammes[$programmeId] = true;
+            $studyYear = $assignment['studyYear'] ?? null;
+            if (!is_int($studyYear) || $studyYear < 1 || $studyYear > 6) throw new ApiException('Choose one study year from 1 to 6 for each programme.', 422);
+            $canonicalAssignments[] = [
+                'programmeId' => (string)$academicRecord['programmeId'],
+                'programmeName' => $academicRecord['programmeName'],
+                'studyYear' => $studyYear,
+            ];
+        }
         try { $encodedQuestions = json_encode($questions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE); }
         catch (JsonException) { throw new ApiException('Paper questions contain invalid data.', 422); }
         return [
             'title' => $title,
             'course' => $this->text($input['course'] ?? '', 'Course', 160),
-            'year' => $this->text($input['year'] ?? '', 'Exam year', 40),
-            'semester' => $this->text($input['semester'] ?? '', 'Semester', 40),
+            'year' => $year,
+            'semester' => $semester,
+            'departmentId' => (string)$department['id'],
+            'departmentName' => $department['name'],
             'questions' => $encodedQuestions,
+            'programmeAssignments' => json_encode($canonicalAssignments, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'questionCount' => count($questions),
         ];
     }

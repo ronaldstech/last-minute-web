@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
+import { listAcademicRecords, listFirestoreDepartments } from '../../services/adminAcademics.js'
+import { listCollection } from '../../services/firestore.js'
 import './PaperReviewEditor.css'
 
 const questionTypes = ['structured', 'calculation', 'essay', 'diagram', 'programming', 'database_design', 'queue_simulation']
+const examTypes = ['quiz1', 'midsemester', 'quiz2', 'quiz3', 'endsemester', 'project', 'presentation', 'end-semester', 'sample']
 
 function freshQuestion(index) {
   return { id: `q-${crypto.randomUUID()}`, number: String(index + 1), order: index + 1, type: 'structured', marks: null, content: [{ type: 'paragraph', text: '' }], subquestions: [], assets: [], source_location: { pageStart: 1, pageEnd: 1 } }
@@ -63,22 +66,121 @@ function TableContentEditor({ block, onChange }) {
   return <div className="paper-content-block"><span>Table</span><input value={block.title || ''} placeholder="Table title (optional)" onChange={(event) => onChange({ title: event.target.value })}/><label>Column names<input value={(block.columns || []).join(', ')} placeholder="Column 1, Column 2" onChange={(event) => onChange({ columns: event.target.value.split(',').map((column) => column.trim()) })}/></label><label>Rows (JSON array)<textarea rows={4} value={rowsText} onChange={(event) => setRowsText(event.target.value)} onBlur={saveRows}/></label>{rowsError && <small className="paper-field-error">{rowsError}</small>}</div>
 }
 
-export default function PaperReviewEditor({ paper, saving, onClose, onSave }) {
-  const [draft, setDraft] = useState(() => ({ ...paper, questions: (paper.questions || []).map((question) => ({ ...question, content: question.content || [], subquestions: question.subquestions || [] })) }))
-  const update = (key, value) => setDraft((current) => ({ ...current, [key]: value }))
+function ProgrammeAssignmentRow({ assignment, index, departmentId, departments, selectedProgrammeIds, session, onChange, onRemove }) {
+  const [programmes, setProgrammes] = useState([])
+  const [programmesLoading, setProgrammesLoading] = useState(false)
+  const department = departments.find((item) => String(item.id) === String(departmentId))
+  useEffect(() => {
+    let active = true
+    const loadProgrammes = async () => {
+      if (!department) return
+      setProgrammesLoading(true)
+      try {
+        const records = session.authProvider === 'php-mysql'
+          ? await listAcademicRecords(session.token, 'programmes', department.id)
+          : await listCollection(session.idToken, `${department.firestorePath}/programmes`, { pageSize: 250 })
+        if (active) setProgrammes(records)
+      } catch {
+        if (active) setProgrammes([])
+      } finally { if (active) setProgrammesLoading(false) }
+    }
+    void loadProgrammes()
+    return () => { active = false }
+  }, [department, session])
+  const update = (changes) => onChange({ ...assignment, ...changes })
+  const legacyProgramme = assignment.programmeId && !programmes.some((item) => String(item.id) === String(assignment.programmeId))
+  return <article className="paper-programme-row">
+    <header><strong>Programme {index + 1}</strong><button type="button" className="paper-programme-remove" onClick={onRemove}>Remove</button></header>
+    <div className="paper-programme-fields">
+      <label>Programme<select required disabled={!department || programmesLoading} value={assignment.programmeId || ''} onChange={(event) => {
+        const selected = programmes.find((item) => String(item.id) === event.target.value)
+        update({ programmeId: selected?.id || '', programmeName: selected?.name || '', studyYear: '' })
+      }}><option value="">{programmesLoading ? 'Loading programmes…' : 'Select programme'}</option>{legacyProgramme && <option value={assignment.programmeId}>{assignment.programmeName} (saved)</option>}{programmes.filter((item) => !selectedProgrammeIds.includes(String(item.id)) || String(item.id) === String(assignment.programmeId)).map((item) => <option key={item.id} value={item.id}>{item.name}{item.alias ? ` (${item.alias})` : ''}</option>)}</select></label>
+      <label>Study year<select required value={assignment.studyYear || ''} onChange={(event) => update({ studyYear: event.target.value ? Number(event.target.value) : '' })}><option value="">Select year</option>{[1, 2, 3, 4, 5, 6].map((year) => <option key={year} value={year}>Year {year}</option>)}</select></label>
+    </div>
+  </article>
+}
+
+export default function PaperReviewEditor({ paper, session, saving, onClose, onSave }) {
+  const [draft, setDraft] = useState(() => {
+    const oldAssignments = paper.programmeAssignments || []
+    return {
+      ...paper,
+      departmentId: paper.departmentId || oldAssignments[0]?.departmentId || '',
+      departmentName: paper.departmentName || oldAssignments[0]?.departmentName || '',
+      programmeAssignments: oldAssignments.map((assignment) => ({ programmeId: assignment.programmeId || '', programmeName: assignment.programmeName || '', studyYear: assignment.studyYear || assignment.studyYears?.[0] || '' })),
+      questions: (paper.questions || []).map((question) => ({ ...question, content: question.content || [], subquestions: question.subquestions || [] })),
+    }
+  })
+  const [departments, setDepartments] = useState([])
+  const [departmentsLoading, setDepartmentsLoading] = useState(true)
+  const [departmentError, setDepartmentError] = useState('')
+  const [metadataError, setMetadataError] = useState('')
+  const [currentYear] = useState(() => new Date().getFullYear())
+  const normalizedSemester = String(draft.semester || '').match(/^\s*(?:semester\s*)?([12])\s*$/i)?.[1] || ''
+  useEffect(() => {
+    let active = true
+    const loadDepartments = async () => {
+      setDepartmentsLoading(true)
+      setDepartmentError('')
+      try {
+        const records = session.authProvider === 'php-mysql'
+          ? await listAcademicRecords(session.token, 'departments')
+          : await listFirestoreDepartments(session.idToken)
+        if (active) setDepartments(records)
+      } catch (error) {
+        if (active) setDepartmentError(error.message || 'Could not load departments.')
+      } finally { if (active) setDepartmentsLoading(false) }
+    }
+    void loadDepartments()
+    return () => { active = false }
+  }, [session])
+  const update = (key, value) => {
+    setMetadataError('')
+    setDraft((current) => ({ ...current, [key]: value }))
+  }
   const updateQuestion = (index, question) => update('questions', draft.questions.map((item, current) => current === index ? question : item))
   const removeQuestion = (index) => update('questions', draft.questions.filter((_, current) => current !== index).map((question, order) => ({ ...question, order: order + 1 })))
+  const save = () => {
+    if (!examTypes.includes(draft.title)) {
+      setMetadataError('Choose an exam type from the list.')
+      return
+    }
+    if (!normalizedSemester) {
+      setMetadataError('Choose Semester 1 or Semester 2.')
+      return
+    }
+    if (!draft.departmentId) {
+      setMetadataError('Choose a department for this paper.')
+      return
+    }
+    const year = Number(draft.year)
+    if (!Number.isInteger(year) || year < 2015 || year > currentYear) {
+      setMetadataError(`Choose an exam year from 2015 through ${currentYear}.`)
+      return
+    }
+    const hasIncompleteAssignment = (draft.programmeAssignments || []).some((assignment) => !assignment.programmeId || !assignment.studyYear)
+    if (hasIncompleteAssignment) {
+      setMetadataError('Complete each programme assignment and choose its study year.')
+      return
+    }
+    onSave({ ...draft, semester: normalizedSemester })
+  }
   return <div className="paper-review-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
     <section className="paper-review-editor" role="dialog" aria-modal="true" aria-labelledby="paper-review-title">
       <header className="paper-review-header"><div><span className="section-kicker">PAPER LIBRARY · REVIEW</span><h2 id="paper-review-title">Review paper</h2><p>Check the details and add or correct its questions before saving.</p></div><button type="button" className="paper-icon-button" aria-label="Close review" disabled={saving} onClick={onClose}><Icon name="close" size={18}/></button></header>
       <div className="paper-review-body">
-        <section className="paper-metadata-card"><h3>Paper details</h3><div className="paper-metadata-grid"><label>Exam type / title<input value={draft.title || ''} placeholder="e.g. End of semester examination" onChange={(event) => update('title', event.target.value)}/></label><label>Course<input value={draft.course || ''} placeholder="Course or subject" onChange={(event) => update('course', event.target.value)}/></label><label>Exam year<input value={draft.year || ''} placeholder="e.g. 2025" onChange={(event) => update('year', event.target.value)}/></label><label>Semester<input value={draft.semester || ''} placeholder="e.g. Semester 1" onChange={(event) => update('semester', event.target.value)}/></label></div></section>
+        <section className="paper-metadata-card"><h3>Paper details</h3><div className="paper-metadata-grid"><label>Exam type<select required value={draft.title || ''} onChange={(event) => update('title', event.target.value)}><option value="">Select exam type</option>{examTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label><label>Course<input value={draft.course || ''} placeholder="Course or subject" onChange={(event) => update('course', event.target.value)}/></label><label>Exam year<select required value={draft.year || ''} onChange={(event) => update('year', event.target.value)}><option value="">Select exam year</option>{Array.from({ length: Math.max(0, currentYear - 2014) }, (_, index) => currentYear - index).map((year) => <option key={year} value={year}>{year}</option>)}</select></label><label>Semester<select required value={normalizedSemester} onChange={(event) => update('semester', event.target.value)}><option value="">Select semester</option><option value="1">Semester 1</option><option value="2">Semester 2</option></select></label></div><label className="paper-department-field">Department<select required disabled={departmentsLoading} value={draft.departmentId || ''} onChange={(event) => {
+          const department = departments.find((item) => String(item.id) === event.target.value)
+          setMetadataError('')
+          setDraft((current) => ({ ...current, departmentId: department?.id || '', departmentName: department?.name || '', programmeAssignments: [] }))
+        }}><option value="">{departmentsLoading ? 'Loading departments…' : 'Select department'}</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}{department.schoolName ? ` — ${department.schoolName}` : ''}{department.collegeName ? `, ${department.collegeName}` : ''}</option>)}</select></label>{metadataError && <small className="paper-field-error" role="alert">{metadataError}</small>}{departmentError && <small className="paper-field-error" role="alert">{departmentError}</small>}{!departmentsLoading && !departmentError && !departments.length && <small className="paper-directory-status">No departments found. Add departments in Academic structure first.</small>}<div className="paper-programmes-heading"><div><h3>Programmes</h3><p>Choose multiple programmes; set one study year for each.</p></div><button type="button" className="paper-programme-add" onClick={() => update('programmeAssignments', [...(draft.programmeAssignments || []), { programmeId: '', programmeName: '', studyYear: '' }])} disabled={!draft.departmentId}>Add programme</button></div>{!draft.departmentId && <small className="paper-directory-status">Select a department before adding programmes.</small>}{(draft.programmeAssignments || []).map((assignment, index) => <ProgrammeAssignmentRow key={`${assignment.programmeId || 'new'}-${index}`} assignment={assignment} index={index} departmentId={draft.departmentId} departments={departments} selectedProgrammeIds={draft.programmeAssignments.filter((_, itemIndex) => itemIndex !== index).map((item) => String(item.programmeId || ''))} session={session} onChange={(updated) => update('programmeAssignments', draft.programmeAssignments.map((item, itemIndex) => itemIndex === index ? updated : item))} onRemove={() => update('programmeAssignments', draft.programmeAssignments.filter((_, itemIndex) => itemIndex !== index))}/>)}</section>
         <div className="paper-questions-heading"><div><h3>Questions <span>{draft.questions.length}</span></h3><p>Each question can include prompt content and nested sub-questions.</p></div><strong>{draft.questions.reduce((sum, question) => sum + Number(question.marks || 0), 0)} marks</strong></div>
         {draft.questions.map((question, index) => <QuestionCard key={question.id || index} question={question} index={index} onChange={(updated) => updateQuestion(index, updated)} onRemove={() => removeQuestion(index)}/>)}
         {!draft.questions.length && <div className="paper-no-questions"><Icon name="file" size={22}/><strong>No questions yet</strong><span>Add a question to start entering the paper contents.</span></div>}
         <button type="button" className="paper-add-question" onClick={() => update('questions', [...draft.questions, freshQuestion(draft.questions.length)])}><Icon name="plus" size={16}/> Add question</button>
       </div>
-      <footer className="paper-review-footer"><span>{draft.questions.length} questions in this paper</span><div><button type="button" onClick={onClose} disabled={saving}>Cancel</button><button type="button" className="paper-save-button" onClick={() => onSave(draft)} disabled={saving}>{saving ? 'Saving…' : 'Save paper'}</button></div></footer>
+      <footer className="paper-review-footer"><span>{draft.questions.length} questions in this paper</span><div><button type="button" onClick={onClose} disabled={saving}>Cancel</button><button type="button" className="paper-save-button" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save paper'}</button></div></footer>
     </section>
   </div>
 }
