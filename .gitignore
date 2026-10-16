@@ -15,6 +15,7 @@ dist-ssr
 .env.*
 !.env.example
 !backend/.env.example
+backend/config.php
 
 # Editor directories and files
 .vscode/*

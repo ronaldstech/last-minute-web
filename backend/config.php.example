@@ -1,0 +1,15 @@
+<?php
+
+// Copy this file to config.php on the server and fill in the Hostinger database values.
+return [
+    'DB_HOST' => 'localhost',
+    'DB_PORT' => '3306',
+    'DB_NAME' => 'your_hostinger_database_name',
+    'DB_USER' => 'your_hostinger_database_user',
+    'DB_PASSWORD' => 'your_hostinger_database_password',
+    'DB_CHARSET' => 'utf8mb4',
+
+    // Optional: keep Groq settings here if marking.php is configured to read this file.
+    'GROQ_API_KEY' => '',
+    'GROQ_MODEL' => 'openai/gpt-oss-20b',
+];

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { PaperQuestion } from './PaperDetailScreen.jsx'
 import { hasAnswerablePrompt } from '../utils/paperQuestions.js'
-import { submitPracticeAnswer } from '../services/studentPapers.js'
+import { markPracticeAnswer, submitPracticeAnswer } from '../services/studentPapers.js'
 import './PracticeMode.css'
 
 function readProgress(key, count) {
@@ -13,7 +13,7 @@ function readProgress(key, count) {
 }
 
 function answerFieldCount(question) {
-  const countSubquestions = (items = []) => items.reduce((total, item) => total + 1 + countSubquestions(item.subquestions || []), 0)
+  const countSubquestions = (items = []) => items.reduce((total, item) => total + (item.subquestions?.length ? 0 : 1) + countSubquestions(item.subquestions || []), 0)
   return Number(hasAnswerablePrompt(question)) + countSubquestions(question.subquestions || [])
 }
 
@@ -22,7 +22,7 @@ function hasAnsweredQuestion(question, index, answers) {
   if (hasAnswerablePrompt(question) && answers[rootKey]?.trim()) return true
   const hasAnsweredSubquestion = (items = [], parentKey = rootKey) => items.some((item, itemIndex) => {
     const key = `${parentKey}.${item.id || itemIndex}`
-    return Boolean(answers[key]?.trim()) || hasAnsweredSubquestion(item.subquestions || [], key)
+    return (!item.subquestions?.length && Boolean(answers[key]?.trim())) || hasAnsweredSubquestion(item.subquestions || [], key)
   })
   return hasAnsweredSubquestion(question.subquestions || [])
 }
@@ -61,7 +61,8 @@ export default function PracticeMode({ paper, sessionToken, onExit }) {
     setSubmitErrors((current) => ({ ...current, [key]: '' }))
     try {
       const submission = await submitPracticeAnswer(sessionToken, paper.id, key, answers[key] || '')
-      setSubmissions((current) => ({ ...current, [key]: submission }))
+      const marking = await markPracticeAnswer({ token: sessionToken, paper, questionKey: key, answer: answers[key] || '' })
+      setSubmissions((current) => ({ ...current, [key]: { ...submission, status: 'marked', marking } }))
     } catch (error) {
       setSubmitErrors((current) => ({ ...current, [key]: error.message || 'Could not submit this answer. Try again.' }))
     } finally {

@@ -23,9 +23,10 @@ function PracticeAnswerField({ answerKey, answer, submission, submitting, error,
     <textarea id={inputId} value={answer || ''} disabled={submitting} onChange={(event) => onChange(answerKey, event.target.value)} placeholder="Write your answer here…" rows={4}/>
     <div className="practice-submit-row">
       <button className="practice-submit" type="button" disabled={submitting || !answer?.trim()} onClick={() => onSubmit(answerKey)}><Icon name={submitting ? 'clock' : 'spark'} size={14}/>{submitting ? 'Submitting…' : submission ? 'Submit again' : 'Submit for marking'}</button>
-      {submission && <span className="practice-submit-status"><Icon name="check" size={13}/> Submitted · {submission.status === 'pending' ? 'awaiting marking' : submission.status}</span>}
+      {submission && <span className="practice-submit-status"><Icon name="check" size={13}/>{submission.marking ? `Marked ${submission.marking.score} / ${submission.marking.maxMarks}` : `Submitted · ${submission.status === 'pending' ? 'awaiting marking' : submission.status}`}</span>}
       {error && <span className="practice-submit-error" role="alert">{error}</span>}
     </div>
+    {submission?.marking && <div className="practice-mark-feedback">{submission.marking.feedback && <><strong>Feedback</strong><p>{submission.marking.feedback}</p></>}{submission.marking.strengths?.length > 0 && <p><b>Strengths:</b> {submission.marking.strengths.join(' · ')}</p>}{submission.marking.improvements?.length > 0 && <p><b>Next steps:</b> {submission.marking.improvements.join(' · ')}</p>}{submission.marking.betterAnswer && <div className="practice-suggested-answer"><strong>Suggested answer</strong><p>{submission.marking.betterAnswer}</p></div>}</div>}
   </div>
 }
 
@@ -35,7 +36,7 @@ function Subquestions({ items = [], depth = 0, parentKey = '', answers = {}, sub
     {items.map((item, index) => {
       const answerKey = `${parentKey}.${item.id || index}`
       return <article className="paper-detail-subquestion" key={item.id || `${depth}-${index}`}><div className="paper-detail-subquestion-heading"><strong>{item.number || String.fromCharCode(97 + index)}.</strong><span>{item.text}</span>{item.marks !== null && item.marks !== undefined && <small>[{item.marks} marks]</small>}</div>
-        {onPracticeAnswer && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/></div>}
+        {onPracticeAnswer && !item.subquestions?.length && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/></div>}
         <Subquestions items={item.subquestions || []} depth={depth + 1} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit}/></article>
     })}
   </div>

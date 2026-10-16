@@ -55,8 +55,30 @@ function parseTextIntoQuestions(text) {
   let lastQuestionNumber = 0
   const flushSub = () => {
     if (!activeSub || !active) return
-    const { marks, text: body } = splitMarks(activeSub.text.join(' '))
-    active.subquestions.push({ id: `sq-${crypto.randomUUID()}`, number: activeSub.number, text: body, marks, subquestions: [] })
+    const rawText = activeSub.text.join(' ').trim()
+    // Roman-numbered prompts often follow a marked lettered heading on the same
+    // extracted PDF line (for example, "Arrays (5 marks) i. Define...").
+    const nestedParts = [...rawText.matchAll(/(?:^|\s)(i{1,3}|iv|v|vi{0,3}|ix|x)[.)]\s+/gi)]
+    const part = { id: `sq-${crypto.randomUUID()}`, number: activeSub.number, text: '', marks: null, subquestions: [] }
+    if (nestedParts.length) {
+      const preamble = rawText.slice(0, nestedParts[0].index).trim()
+      const parent = splitMarks(preamble)
+      part.text = parent.text
+      for (let index = 0; index < nestedParts.length; index++) {
+        const marker = nestedParts[index]
+        const start = marker.index + marker[0].length
+        const end = nestedParts[index + 1]?.index ?? rawText.length
+        const child = splitMarks(rawText.slice(start, end))
+        part.subquestions.push({ id: `sq-${crypto.randomUUID()}`, number: marker[1].toLowerCase(), text: child.text, marks: child.marks, subquestions: [] })
+      }
+      const childMarks = part.subquestions.map((child) => child.marks).filter(Number.isFinite)
+      part.marks = parent.marks ?? (childMarks.length ? childMarks.reduce((sum, mark) => sum + mark, 0) : null)
+    } else {
+      const { marks, text: body } = splitMarks(rawText)
+      part.text = body
+      part.marks = marks
+    }
+    active.subquestions.push(part)
     activeSub = null
   }
   const flushQuestion = () => {
@@ -65,6 +87,10 @@ function parseTextIntoQuestions(text) {
     const { marks, text: body } = splitMarks(active.paragraphs.join('\n'))
     if (body) active.content.push({ type: 'paragraph', text: body })
     if (!active.marks && marks) active.marks = marks
+    if (active.subquestions.length) {
+      const subMarks = active.subquestions.map((part) => part.marks).filter(Number.isFinite)
+      if (subMarks.length) active.marks = subMarks.reduce((sum, mark) => sum + mark, 0)
+    }
     questions.push(normalizeQuestion(active, questions.length))
     active = null
   }

@@ -1,6 +1,6 @@
 import { listCollection } from './firestore.js'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/backend/public').replace(/\/$/, '')
+import { API_BASE_URL } from './apiConfig.js'
 
 async function request(path, token, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
