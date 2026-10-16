@@ -5,7 +5,7 @@ import { listCollection } from '../../services/firestore.js'
 import './PaperReviewEditor.css'
 
 const questionTypes = ['structured', 'calculation', 'essay', 'diagram', 'programming', 'database_design', 'queue_simulation']
-const examTypes = ['quiz1', 'midsemester', 'quiz2', 'quiz3', 'endsemester', 'project', 'presentation', 'end-semester', 'sample']
+const examTypes = ['quiz1', 'midsemester', 'quiz2', 'quiz3', 'endsemester', 'project', 'presentation', 'sample']
 
 function freshQuestion(index) {
   return { id: `q-${crypto.randomUUID()}`, number: String(index + 1), order: index + 1, type: 'structured', marks: null, content: [{ type: 'paragraph', text: '' }], subquestions: [], assets: [], source_location: { pageStart: 1, pageEnd: 1 } }

@@ -12,7 +12,7 @@ use LastMinute\Repositories\AdminPaperRepository;
 /** Admin-only paper library CRUD handlers. */
 final class AdminPaperController
 {
-    private const EXAM_TYPES = ['quiz1', 'midsemester', 'quiz2', 'quiz3', 'endsemester', 'project', 'presentation', 'end-semester', 'sample'];
+    private const EXAM_TYPES = ['quiz1', 'midsemester', 'quiz2', 'quiz3', 'endsemester', 'project', 'presentation', 'sample'];
 
     public function __construct(private readonly AdminPaperRepository $papers, private readonly Authenticate $authenticate) {}
 
