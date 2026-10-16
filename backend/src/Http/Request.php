@@ -24,8 +24,19 @@ final class Request
         if ($prefix !== '' && ($uriPath === $prefix || str_starts_with($uriPath, $prefix . '/'))) {
             $uriPath = substr($uriPath, strlen($prefix));
         } else {
-            // Keep compatibility with deployments that expose the API as /api.
-            $uriPath = preg_replace('~^/api(?=/|$)~', '', $uriPath) ?: '/';
+            // The backend may be hosted below a project subdirectory, such as
+            // /rt/last_minute/backend/public. Strip its public API segment too.
+            $deployedPrefix = '/backend/public';
+            $prefixPosition = strrpos($uriPath, $deployedPrefix);
+            if ($prefixPosition !== false) {
+                $suffix = substr($uriPath, $prefixPosition + strlen($deployedPrefix));
+                if ($suffix === '' || str_starts_with($suffix, '/')) {
+                    $uriPath = $suffix;
+                }
+            } else {
+                // Keep compatibility with deployments that expose the API as /api.
+                $uriPath = preg_replace('~^/api(?=/|$)~', '', $uriPath) ?: '/';
+            }
         }
         $path = $uriPath ?: '/';
         if ($path === '') $path = '/';
