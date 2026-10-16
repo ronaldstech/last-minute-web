@@ -242,7 +242,7 @@ function App() {
 
     switch (activeTab) {
       case 'Papers':
-        return <PapersScreen {...sharedPaperProps} query={query} setQuery={setQuery} showNotice={showNotice} loading={papersLoading} />
+        return <PapersScreen {...sharedPaperProps} profile={profile} query={query} setQuery={setQuery} onOpenProfile={() => navigate('Profile')} showNotice={showNotice} loading={papersLoading} />
       case 'Saved':
         return <SavedScreen papers={papers} savedIds={savedIds} loading={savedLoading || papersLoading} onToggleSaved={toggleSaved} onOpenPaper={openPaper} onBrowse={() => navigate('Papers')} />
       case 'Coins':

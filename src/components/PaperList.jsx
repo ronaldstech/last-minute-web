@@ -1,7 +1,7 @@
 import Icon from './Icon.jsx'
 import './PaperList.css'
 
-export default function PaperList({ papers, savedIds = [], onOpen, onToggleSaved, showSave = false, loading = false }) {
+export default function PaperList({ papers, savedIds = [], onOpen, onToggleSaved, showSave = false, loading = false, recommendationReasons = {} }) {
   if (loading) return <div className="content-loader"><span className="notification-spinner" /> Loading papers…</div>
   if (papers.length === 0) {
     return <div className="empty-panel"><span className="empty-icon"><Icon name="file" size={24} /></span><h3>No papers found</h3><p>Try another search or choose a different subject.</p></div>
@@ -19,6 +19,7 @@ export default function PaperList({ papers, savedIds = [], onOpen, onToggleSaved
                 <span className="paper-card-overline"><span className={`paper-subject ${paper.tone}-text`}>{paper.course || paper.subject}</span>{paper.year && <span className="paper-card-year">{paper.year}</span>}</span>
                 <strong>{paper.title || 'Question paper'}</strong>
                 <small>{[paper.semester ? `Semester ${paper.semester}` : '', paper.departmentName, paper.detail].filter(Boolean).join(' | ')}</small>
+                {recommendationReasons[paper.id] && <span className="paper-recommendation-reason"><Icon name="spark" size={12} /> {recommendationReasons[paper.id]}</span>}
                 {paper.programmeAssignments?.length > 0 && <span className="paper-card-programmes">{paper.programmeAssignments.slice(0, 2).map((assignment, index) => <span key={`${assignment.programmeId || assignment.programmeName}-${index}`}>{assignment.programmeName || 'Programme'}{assignment.studyYear ? ` | Year ${assignment.studyYear}` : ''}</span>)}{paper.programmeAssignments.length > 2 && <span>+{paper.programmeAssignments.length - 2} programmes</span>}</span>}
               </span>
             </button>
