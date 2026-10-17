@@ -14,6 +14,7 @@ final class Request
         private readonly string $rawBody,
         private readonly array $headers,
         private readonly array $query = [],
+        private readonly array $files = [],
     ) {}
 
     /** Build a request from PHP's current HTTP globals. */
@@ -44,12 +45,18 @@ final class Request
         if (!isset($headers['Authorization']) && isset($_SERVER['HTTP_AUTHORIZATION'])) {
             $headers['Authorization'] = $_SERVER['HTTP_AUTHORIZATION'];
         }
-        return new self(strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'), $path, file_get_contents('php://input') ?: '', $headers, $_GET);
+        return new self(strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'), $path, file_get_contents('php://input') ?: '', $headers, $_GET, $_FILES);
     }
 
     public function query(string $key, string $default = ''): string
     {
         return is_scalar($this->query[$key] ?? null) ? (string)$this->query[$key] : $default;
+    }
+
+    public function file(string $key): ?array
+    {
+        $file = $this->files[$key] ?? null;
+        return is_array($file) ? $file : null;
     }
 
     /** Decode a JSON request body or fail with a client-safe validation error. */
@@ -71,4 +78,5 @@ final class Request
         if (!preg_match('/^Bearer\s+([a-f0-9]{64})$/i', (string)$authorization, $match)) return null;
         return strtolower($match[1]);
     }
+
 }

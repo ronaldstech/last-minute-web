@@ -19,6 +19,11 @@ function ContentBlock({ block }) {
   return block.text ? <p>{block.text}</p> : null
 }
 
+function QuestionImages({ images = [] }) {
+  if (!images.length) return null
+  return <div className="paper-question-images">{images.map((image, index) => { const url = typeof image === 'string' ? image : image.url || image.path; return url ? <figure key={`${url}-${index}`}><img src={url} alt={image.name || image.caption || 'Question attachment'}/>{image.caption && <figcaption>{image.caption}</figcaption>}</figure> : null })}</div>
+}
+
 function PracticeAnswerField({ answerKey, answer, submission, submitting, error, onChange, onSubmit }) {
   const inputId = `practice-answer-${answerKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`
   const table = decodeTableAnswer(answer)
@@ -48,7 +53,7 @@ function Subquestions({ items = [], depth = 0, parentKey = '', answers = {}, sub
   return <div className="paper-detail-subquestions" style={{ '--question-depth': depth }}>
     {items.map((item, index) => {
       const answerKey = `${parentKey}.${item.id || index}`
-      return <article className="paper-detail-subquestion" key={item.id || `${depth}-${index}`}><div className="paper-detail-subquestion-heading"><strong>{item.number || String.fromCharCode(97 + index)}.</strong><span>{item.text}</span>{item.marks !== null && item.marks !== undefined && <small>[{item.marks} marks]</small>}</div>
+      return <article className="paper-detail-subquestion" key={item.id || `${depth}-${index}`}><div className="paper-detail-subquestion-heading"><strong>{item.number || String.fromCharCode(97 + index)}.</strong><span>{item.text}</span>{item.marks !== null && item.marks !== undefined && <small>[{item.marks} marks]</small>}</div><QuestionImages images={item.images || []}/>
         {onPracticeAnswer && !item.subquestions?.length && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/></div>}
         <Subquestions items={item.subquestions || []} depth={depth + 1} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit}/></article>
     })}
@@ -62,6 +67,7 @@ export function PaperQuestion({ question, index, answers, submissions, submittin
   const hasPrompt = hasAnswerablePrompt(question)
   return <article className="paper-detail-question"><header><strong>{questionNumber}.</strong>{question.type && question.type !== 'structured' && <span>{question.type}</span>}{question.marks !== null && question.marks !== undefined && <small>[{question.marks} marks]</small>}</header>
     {content.length ? <div className="paper-detail-question-content">{content.map((block, blockIndex) => <ContentBlock key={`${question.id || index}-${blockIndex}`} block={block}/>)}</div> : question.text ? <p className="paper-detail-question-text">{question.text}</p> : null}
+    <QuestionImages images={question.images || []}/>
     {question.assets?.length > 0 && <ul className="paper-detail-assets">{question.assets.map((asset, assetIndex) => { const path = typeof asset === 'string' ? asset : asset.path || asset.url || asset.name || 'Attached file'; return <li key={`${path}-${assetIndex}`}>{asset.caption || asset.name || path}</li> })}</ul>}
     {onPracticeAnswer && hasPrompt && <PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/>}
     <Subquestions items={question.subquestions || []} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit}/>

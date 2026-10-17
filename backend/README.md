@@ -2,6 +2,8 @@
 
 This PHP 8.1+ API uses PDO MySQL with no Composer dependencies. Copy the `backend` folder to `C:/xampp/htdocs/backend` for local XAMPP use. The API is reached at `http://localhost/backend/public`; `.htaccess` rules block requests to private source, config, and SQL files.
 
+The admin question-image upload route stores images in `public/uploads/question-images` and requires an active PHP API bearer session with administrator access.
+
 ## XAMPP setup
 
 1. Start Apache and MySQL in XAMPP Control Panel.

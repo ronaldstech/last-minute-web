@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import { listAcademicRecords, listFirestoreDepartments } from '../../services/adminAcademics.js'
 import { listCollection } from '../../services/firestore.js'
+import { uploadPaperQuestionImage } from '../../services/paperQuestionImages.js'
 import './PaperReviewEditor.css'
 
 const questionTypes = ['structured', 'calculation', 'essay', 'diagram', 'programming', 'database_design', 'queue_simulation']
@@ -11,7 +12,22 @@ function freshQuestion(index) {
   return { id: `q-${crypto.randomUUID()}`, number: String(index + 1), order: index + 1, type: 'structured', marks: null, content: [{ type: 'paragraph', text: '' }], subquestions: [], assets: [], source_location: { pageStart: 1, pageEnd: 1 } }
 }
 
-function SubquestionsEditor({ items = [], onChange, depth = 0 }) {
+function ImageAttachments({ images = [], session, onChange, compact = false }) {
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [error, setError] = useState('')
+  const [showImages, setShowImages] = useState(false)
+  const upload = async (file) => {
+    if (!file) return
+    setUploading(true); setError('')
+    try { const url = await uploadPaperQuestionImage(session, file, setUploadProgress); onChange([...images, { url, name: file.name }]) }
+    catch (uploadError) { setError(uploadError.message || 'Could not upload this image.') }
+    finally { setUploading(false); setUploadProgress(0) }
+  }
+  return <div className={`paper-image-attachments${compact ? ' is-compact' : ''}`}><label className="paper-image-upload"><Icon name="image" size={14}/>{uploading ? `Uploading ${uploadProgress}%` : 'Add image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={(event) => { void upload(event.target.files?.[0]); event.target.value = '' }}/></label>{images.length > 0 && <button type="button" className="paper-image-count" aria-expanded={showImages} onClick={() => setShowImages((shown) => !shown)}>{images.length} attached</button>}{images.length > 0 && showImages && <div className="paper-image-preview-list">{images.map((image, index) => { const url = typeof image === 'string' ? image : image.url || image.path; return <figure key={`${url}-${index}`}><img src={url} alt={image.name || image.caption || 'Question attachment'}/><button type="button" onClick={() => onChange(images.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remove attached image">Remove</button></figure> })}</div>}{error && <small role="alert">{error}</small>}</div>
+}
+
+function SubquestionsEditor({ items = [], onChange, depth = 0, session }) {
   const update = (index, changes) => onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, ...changes } : item))
   return <div className="paper-subquestions" style={{ '--depth': depth }}>
     {items.map((item, index) => <div className="paper-subquestion" key={item.id || `${depth}-${index}`}>
@@ -21,13 +37,14 @@ function SubquestionsEditor({ items = [], onChange, depth = 0 }) {
         <input aria-label="Sub-question marks" type="number" min="0" value={item.marks ?? ''} placeholder="Marks" onChange={(event) => update(index, { marks: event.target.value === '' ? null : Number(event.target.value) })}/>
         <button type="button" className="paper-icon-button" aria-label="Remove sub-question" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15}/></button>
       </div>
-      <SubquestionsEditor items={item.subquestions || []} depth={depth + 1} onChange={(subquestions) => update(index, { subquestions })}/>
+      <div className="paper-subquestion-attachment-row"><ImageAttachments images={item.images || []} session={session} compact onChange={(images) => update(index, { images })}/></div>
+      <SubquestionsEditor items={item.subquestions || []} depth={depth + 1} session={session} onChange={(subquestions) => update(index, { subquestions })}/>
     </div>)}
     <button type="button" className="paper-add-sub" onClick={() => onChange([...items, { id: `sq-${crypto.randomUUID()}`, number: String.fromCharCode(97 + items.length), text: '', marks: null, subquestions: [] }])}><Icon name="plus" size={14}/> Add {depth ? 'nested ' : ''}sub-question</button>
   </div>
 }
 
-function QuestionCard({ question, index, onChange, onRemove }) {
+function QuestionCard({ question, index, session, onChange, onRemove }) {
   const updateBlock = (blockIndex, changes) => onChange({ ...question, content: (question.content || []).map((block, current) => current === blockIndex ? { ...block, ...changes } : block) })
   const renderBlock = (block, blockIndex) => {
     if (block.type === 'paragraph') return <label className="paper-content-block" key={blockIndex}><span>Paragraph</span><textarea rows={3} value={block.text || ''} placeholder="Write question content" onChange={(event) => updateBlock(blockIndex, { text: event.target.value })}/><button type="button" className="paper-remove-block" onClick={() => onChange({ ...question, content: question.content.filter((_, current) => current !== blockIndex) })}>Remove block</button></label>
@@ -47,8 +64,9 @@ function QuestionCard({ question, index, onChange, onRemove }) {
   }
   return <article className="paper-question-card">
     <header><span className="paper-question-number">Q{index + 1}</span><label>Question number<input value={question.number || ''} onChange={(event) => onChange({ ...question, number: event.target.value })}/></label><label>Question type<select value={question.type || 'structured'} onChange={(event) => onChange({ ...question, type: event.target.value })}>{questionTypes.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}</select></label><label className="paper-mark-field">Marks<input type="number" min="0" value={question.marks ?? ''} placeholder="—" onChange={(event) => onChange({ ...question, marks: event.target.value === '' ? null : Number(event.target.value) })}/></label><button type="button" className="paper-icon-button" aria-label={`Remove question ${index + 1}`} onClick={onRemove}><Icon name="trash" size={16}/></button></header>
+    <div className="paper-question-attachment-row"><span>Attachments</span><ImageAttachments images={question.images || []} session={session} compact onChange={(images) => onChange({ ...question, images })}/></div>
     <div className="paper-question-content"><div className="paper-editor-label">Question content</div>{(question.content || []).map(renderBlock)}<label className="paper-add-content"><Icon name="plus" size={14}/><span>Add content block</span><select value="" onChange={(event) => { if (event.target.value) addBlock(event.target.value) }}><option value="" disabled>Choose a block type…</option><option value="paragraph">Paragraph</option><option value="table">Table</option><option value="bullet_list">List</option><option value="code">Code</option><option value="image">Image reference</option></select></label></div>
-    <div className="paper-question-content"><div className="paper-editor-label">Sub-questions</div><SubquestionsEditor items={question.subquestions || []} onChange={(subquestions) => onChange({ ...question, subquestions })}/></div>
+    <div className="paper-question-content"><div className="paper-editor-label">Sub-questions</div><SubquestionsEditor items={question.subquestions || []} session={session} onChange={(subquestions) => onChange({ ...question, subquestions })}/></div>
   </article>
 }
 
@@ -172,7 +190,7 @@ export default function PaperReviewEditor({ paper, session, saving, onClose, onS
           setDraft((current) => ({ ...current, departmentId: department?.id || '', departmentName: department?.name || '', programmeAssignments: [] }))
         }}><option value="">{departmentsLoading ? 'Loading departments…' : 'Select department'}</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}{department.schoolName ? ` — ${department.schoolName}` : ''}{department.collegeName ? `, ${department.collegeName}` : ''}</option>)}</select></label>{metadataError && <small className="paper-field-error" role="alert">{metadataError}</small>}{departmentError && <small className="paper-field-error" role="alert">{departmentError}</small>}{!departmentsLoading && !departmentError && !departments.length && <small className="paper-directory-status">No departments found. Add departments in Academic structure first.</small>}<div className="paper-programmes-heading"><div><h3>Programmes</h3><p>Choose multiple programmes; set one study year for each.</p></div><button type="button" className="paper-programme-add" onClick={() => update('programmeAssignments', [...(draft.programmeAssignments || []), { programmeId: '', programmeName: '', studyYear: '' }])} disabled={!draft.departmentId}>Add programme</button></div>{!draft.departmentId && <small className="paper-directory-status">Select a department before adding programmes.</small>}{(draft.programmeAssignments || []).map((assignment, index) => <ProgrammeAssignmentRow key={`${assignment.programmeId || 'new'}-${index}`} assignment={assignment} index={index} departmentId={draft.departmentId} departments={departments} selectedProgrammeIds={draft.programmeAssignments.filter((_, itemIndex) => itemIndex !== index).map((item) => String(item.programmeId || ''))} session={session} onChange={(updated) => update('programmeAssignments', draft.programmeAssignments.map((item, itemIndex) => itemIndex === index ? updated : item))} onRemove={() => update('programmeAssignments', draft.programmeAssignments.filter((_, itemIndex) => itemIndex !== index))}/>)}</section>
         <div className="paper-questions-heading"><div><h3>Questions <span>{draft.questions.length}</span></h3><p>Each question can include prompt content and nested sub-questions.</p></div><strong>{draft.questions.reduce((sum, question) => sum + Number(question.marks || 0), 0)} marks</strong></div>
-        {draft.questions.map((question, index) => <QuestionCard key={question.id || index} question={question} index={index} onChange={(updated) => updateQuestion(index, updated)} onRemove={() => removeQuestion(index)}/>)}
+        {draft.questions.map((question, index) => <QuestionCard key={question.id || index} question={question} index={index} session={session} onChange={(updated) => updateQuestion(index, updated)} onRemove={() => removeQuestion(index)}/>)}
         {!draft.questions.length && <div className="paper-no-questions"><Icon name="file" size={22}/><strong>No questions yet</strong><span>Add a question to start entering the paper contents.</span></div>}
         <button type="button" className="paper-add-question" onClick={() => update('questions', [...draft.questions, freshQuestion(draft.questions.length)])}><Icon name="plus" size={16}/> Add question</button>
       </div>

@@ -8,6 +8,7 @@ use LastMinute\Controllers\AdminAcademicController;
 use LastMinute\Controllers\AdminMarkingController;
 use LastMinute\Controllers\ProfileController;
 use LastMinute\Controllers\AdminPaperController;
+use LastMinute\Controllers\AdminQuestionImageController;
 use LastMinute\Controllers\UserPaperController;
 use LastMinute\Controllers\PracticeAnswerController;
 use LastMinute\Controllers\PaperReportController;
@@ -75,6 +76,8 @@ function last_minute_router(): Router
     $router->add('POST', '/admin/papers', [$adminPapers, 'create']);
     $router->add('PATCH', '/admin/papers', [$adminPapers, 'update']);
     $router->add('DELETE', '/admin/papers', [$adminPapers, 'delete']);
+    $adminQuestionImages = new AdminQuestionImageController($authenticate);
+    $router->add('POST', '/admin/paper-question-images', [$adminQuestionImages, 'upload']);
     $router->add('GET', '/admin/paper-reports', [$paperReports, 'index']);
     $router->add('PATCH', '/admin/paper-reports', [$paperReports, 'update']);
     $router->add('GET', '/papers', [$userPapers, 'index']);

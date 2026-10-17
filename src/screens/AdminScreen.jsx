@@ -87,11 +87,13 @@ function paperContentForFirestore(block = {}) {
 }
 
 function paperQuestionForFirestore(question, index) {
+  const normalizeImages = (images) => Array.isArray(images) ? images.filter((image) => typeof image === 'string' || (image && typeof image === 'object')).map((image) => typeof image === 'string' ? image : ({ url: String(image.url || image.path || ''), ...(image.name ? { name: String(image.name) } : {}), ...(image.caption ? { caption: String(image.caption) } : {}) })).filter((image) => typeof image === 'string' ? image : image.url) : []
   const normalizeSubquestion = (item, subIndex = 0) => ({
     id: String(item.id || `sq-${subIndex + 1}`),
     number: String(item.number ?? String.fromCharCode(97 + subIndex)),
     text: String(item.text || ''),
     marks: item.marks === '' || item.marks === undefined || item.marks === null ? null : Number(item.marks),
+    images: normalizeImages(item.images),
     subquestions: Array.isArray(item.subquestions) ? item.subquestions.map(normalizeSubquestion) : [],
   })
   const source = question.source_location || {}
@@ -103,6 +105,7 @@ function paperQuestionForFirestore(question, index) {
     type: String(question.type || 'structured'),
     marks: question.marks === '' || question.marks === undefined || question.marks === null ? null : Number(question.marks),
     content: Array.isArray(question.content) ? question.content.map(paperContentForFirestore) : [],
+    images: normalizeImages(question.images),
     subquestions: Array.isArray(question.subquestions) ? question.subquestions.map(normalizeSubquestion) : [],
     assets: Array.isArray(question.assets) ? question.assets.filter((asset) => typeof asset === 'string' || (asset && typeof asset === 'object' && (asset.path || asset.url))).map((asset) => typeof asset === 'string' ? asset : { ...(asset.name ? { name: String(asset.name) } : {}), ...(asset.type ? { type: String(asset.type) } : {}), ...(asset.path ? { path: String(asset.path) } : {}), ...(asset.url ? { url: String(asset.url) } : {}), ...(asset.caption ? { caption: String(asset.caption) } : {}) }) : [],
     source_location: { page_start: cleanPage(source.page_start ?? source.pageStart), page_end: cleanPage(source.page_end ?? source.pageEnd) },
