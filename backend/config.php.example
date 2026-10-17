@@ -9,6 +9,9 @@ return [
     'DB_PASSWORD' => 'your_hostinger_database_password',
     'DB_CHARSET' => 'utf8mb4',
 
+    // Allowed browser frontends (comma-separated exact origins; no paths).
+    'APP_ORIGINS' => 'https://apexspacemw.com,https://www.apexspacemw.com,https://last.nkk-sec.com,http://localhost:5173,http://127.0.0.1:5173',
+
     // Optional: keep Groq settings here if marking.php is configured to read this file.
     'GROQ_API_KEY' => '',
     'GROQ_MODEL' => 'openai/gpt-oss-20b',

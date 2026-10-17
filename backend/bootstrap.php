@@ -106,19 +106,8 @@ function last_minute_router(): Router
 /** Dispatch the current HTTP request and convert expected errors to JSON. */
 function run_last_minute_api(): never
 {
+    \LastMinute\Http\Cors::handle();
     $request = Request::fromGlobals();
-    $origins = array_filter(array_map('trim', explode(',', \LastMinute\Config\Environment::get('APP_ORIGINS', 'http://localhost:5173') ?? '')));
-    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if ($origin !== '' && in_array($origin, $origins, true)) {
-        header("Access-Control-Allow-Origin: {$origin}");
-        header('Vary: Origin');
-        header('Access-Control-Allow-Headers: Authorization, Content-Type');
-        header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
-    }
-    if ($request->method === 'OPTIONS') {
-        http_response_code(204);
-        exit;
-    }
 
     try {
         $result = last_minute_router()->dispatch($request);

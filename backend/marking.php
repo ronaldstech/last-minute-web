@@ -2,20 +2,7 @@
 
 declare(strict_types=1);
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit;
-}
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed. Use POST.']);
-    exit;
-}
+header('Content-Type: application/json; charset=utf-8');
 
 function markingRespond(int $status, array $body): never
 {
@@ -59,6 +46,13 @@ foreach ($bootstrapCandidates as $candidate) {
 }
 if ($bootstrapPath === null) markingRespond(500, ['error' => 'The backend bootstrap could not be found.']);
 require_once $bootstrapPath;
+\LastMinute\Http\Cors::handle();
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed. Use POST.']);
+    exit;
+}
 
 try {
     $pdo = \LastMinute\Config\Database::connection();

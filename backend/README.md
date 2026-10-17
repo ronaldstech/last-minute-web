@@ -80,7 +80,7 @@ Errors use `{ "message": "..." }` JSON.
 
 Signup accepts `{ "name", "email", "phone", "password" }`. Login accepts `{ "email", "password" }`. Passwords use PHP's `password_hash` and `password_verify`. The client receives a random 256-bit token; MySQL stores only its SHA-256 digest. Sessions expire after 30 days.
 
-On Hostinger, create `backend/config.php` from `config.php.example` and enter the database name, user, password, and host shown in hPanel. The backend `.htaccess` denies web access to this private PHP configuration file. Do not commit the real config file. The wallet calls the existing PayChangu PHP endpoints server-to-server; `PAYMENT_API_BASE_URL` sets their base URL.
+On Hostinger, create `backend/config.php` from `config.php.example` and enter the database name, user, password, and host shown in hPanel. Keep `APP_ORIGINS` set to the exact browser origins that should access the API, such as `https://last.nkk-sec.com`; separate multiple origins with commas and do not include URL paths. The backend `.htaccess` denies web access to this private PHP configuration file. Do not commit the real config file. The wallet calls the existing PayChangu PHP endpoints server-to-server; `PAYMENT_API_BASE_URL` sets their base URL.
 
 Admin user routes resolve the current bearer session and read the administrator role from MySQL on each request. Suspended accounts cannot sign in or use an existing session. The user list returns only public account fields and never includes password hashes.
 
