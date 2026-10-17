@@ -53,26 +53,13 @@ function QuestionCard({ question, index, onChange, onRemove }) {
 }
 
 function TableContentEditor({ block, onChange }) {
-  const [rowsText, setRowsText] = useState(() => JSON.stringify(block.rows || [['', '']], null, 2))
-  const [rowsError, setRowsError] = useState('')
-  const updateRowsText = (value) => {
-    setRowsText(value)
-    try {
-      const parsed = JSON.parse(value)
-      if (!Array.isArray(parsed) || parsed.some((row) => !Array.isArray(row))) return
-      onChange({ rows: parsed })
-      setRowsError('')
-    } catch { /* Keep editing until the JSON is complete. */ }
-  }
-  const saveRows = () => {
-    try {
-      const parsed = JSON.parse(rowsText)
-      if (!Array.isArray(parsed) || parsed.some((row) => !Array.isArray(row))) throw new Error('Rows must be a JSON array of arrays.')
-      onChange({ rows: parsed })
-      setRowsError('')
-    } catch (error) { setRowsError(error.message || 'Check the table row format.') }
-  }
-  return <div className="paper-content-block"><span>Extracted table</span><input value={block.title || ''} placeholder="Table title (optional)" onChange={(event) => onChange({ title: event.target.value })}/><label>Column names<input value={(block.columns || []).join(', ')} placeholder="Column 1, Column 2" onChange={(event) => onChange({ columns: event.target.value.split(',').map((column) => column.trim()) })}/></label><div className="paper-table-preview" role="region" aria-label="Extracted table preview" tabIndex={0}><table><thead><tr>{(block.columns || []).map((column, index) => <th key={`${index}-${column}`}>{column || `Column ${index + 1}`}</th>)}</tr></thead><tbody>{(block.rows || []).map((row, rowIndex) => <tr key={rowIndex}>{(block.columns || []).map((_, columnIndex) => <td key={columnIndex}>{row[columnIndex] || ''}</td>)}</tr>)}</tbody></table>{!block.rows?.length && <small>This table has column headings but no data rows.</small>}</div><label>Rows (JSON array)<textarea rows={4} value={rowsText} onChange={(event) => updateRowsText(event.target.value)} onBlur={saveRows}/></label>{rowsError && <small className="paper-field-error">{rowsError}</small>}</div>
+  const columns = block.columns || []
+  const rows = block.rows || []
+  const updateColumn = (columnIndex, value) => onChange({ columns: columns.map((column, index) => index === columnIndex ? value : column) })
+  const updateCell = (rowIndex, columnIndex, value) => onChange({ rows: rows.map((row, index) => index === rowIndex ? row.map((cell, cellIndex) => cellIndex === columnIndex ? value : cell) : row) })
+  const addColumn = () => onChange({ columns: [...columns, `Column ${columns.length + 1}`], rows: rows.map((row) => [...row, '']) })
+  const addRow = () => onChange({ rows: [...rows, columns.map(() => '')] })
+  return <div className="paper-content-block"><span>Table data</span><input aria-label="Table title" value={block.title || ''} placeholder="Table title (optional)" onChange={(event) => onChange({ title: event.target.value })}/><div className="paper-table-preview" role="region" aria-label="Question table editor" tabIndex={0}>{block.title && <strong>{block.title}</strong>}<table><thead><tr>{columns.map((column, index) => <th key={`${index}-${column}`}><input aria-label={`Table column ${index + 1}`} value={column} placeholder={`Column ${index + 1}`} onChange={(event) => updateColumn(index, event.target.value)}/><button type="button" className="paper-table-remove" aria-label={`Remove column ${index + 1}`} onClick={() => onChange({ columns: columns.filter((_, columnIndex) => columnIndex !== index), rows: rows.map((row) => row.filter((_, columnIndex) => columnIndex !== index)) })}>Remove</button></th>)}<th><button type="button" className="paper-table-add" onClick={addColumn}>Add column</button></th></tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>{columns.map((_, columnIndex) => <td key={columnIndex}><input aria-label={`Row ${rowIndex + 1}, column ${columnIndex + 1}`} value={row[columnIndex] ?? ''} onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)}/></td>)}<td><button type="button" className="paper-table-remove" aria-label={`Remove row ${rowIndex + 1}`} onClick={() => onChange({ rows: rows.filter((_, index) => index !== rowIndex) })}>Remove row</button></td></tr>)}</tbody></table>{!rows.length && <small>Add rows and enter the table values.</small>}</div><button type="button" className="paper-table-add-row" onClick={addRow}>Add row</button></div>
 }
 
 function ProgrammeAssignmentRow({ assignment, index, departmentId, departments, selectedProgrammeIds, session, onChange, onRemove }) {

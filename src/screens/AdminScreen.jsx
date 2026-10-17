@@ -106,10 +106,6 @@ function paperQuestionForFirestore(question, index) {
   }
 }
 
-function countImportedTables(questions = []) {
-  return questions.reduce((total, question) => total + (question.content || []).filter((block) => block.type === 'table').length, 0)
-}
-
 function Stat({ label, value, icon, tone = 'mint' }) {
   return <article className="admin-stat"><span className={`admin-stat-icon ${tone}`}><Icon name={icon} size={19} /></span><div><small>{label}</small><strong>{Number(value || 0).toLocaleString()}</strong></div></article>
 }
@@ -379,8 +375,7 @@ export default function AdminScreen({ session, profile, onBack, showNotice }) {
     try {
       const imported = await importPaperFile(file)
       setPaperEditor(imported)
-      const tableCount = countImportedTables(imported.questions)
-      showNotice(`Imported ${imported.questions.length} question${imported.questions.length === 1 ? '' : 's'}${tableCount ? ` and detected ${tableCount} table${tableCount === 1 ? '' : 's'}` : ''}. Review the paper and save when ready.`)
+      showNotice(`Imported ${imported.questions.length} question${imported.questions.length === 1 ? '' : 's'}. Review the paper and save when ready.`)
     } catch (importError) { showNotice(importError.message || 'Could not import this paper.') }
     finally { setPaperEditorLoading(false) }
   }

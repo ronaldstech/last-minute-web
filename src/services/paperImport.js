@@ -47,24 +47,11 @@ function normalizeQuestion(question, index) {
   }
 }
 
-function tableToken(id) {
-  return `\uE000TABLE-${id}\uE001`
-}
-
-function tableFromRows(rows) {
-  const normalized = rows.map((row) => row.map((cell) => cell === null || cell === undefined ? '' : String(cell).trim()))
-  const width = Math.max(1, ...normalized.map((row) => row.length))
-  const padded = normalized.map((row) => [...row, ...Array(Math.max(0, width - row.length)).fill('')])
-  const firstRow = padded.shift() || []
-  return { type: 'table', title: '', columns: firstRow.map((cell, index) => cell || `Column ${index + 1}`), rows: padded }
-}
-
-function parseTextIntoQuestions(text, tables = new Map()) {
+function parseTextIntoQuestions(text) {
   const lines = text.replace(/\r/g, '').split('\n').map((line) => line.trim()).filter(Boolean)
   const questions = []
   let active = null
   let activeSub = null
-  let pendingTables = []
   let lastQuestionNumber = 0
   const flushSub = () => {
     if (!activeSub || !active) return
@@ -94,17 +81,12 @@ function parseTextIntoQuestions(text, tables = new Map()) {
     active.subquestions.push(part)
     activeSub = null
   }
-  const flushParagraphs = () => {
-    if (!active?.paragraphs.length) return
-    const { marks, text: body } = splitMarks(active.paragraphs.join('\n'))
-    if (body) active.content.push({ type: 'paragraph', text: body })
-    if (!active.marks && marks) active.marks = marks
-    active.paragraphs = []
-  }
   const flushQuestion = () => {
     flushSub()
     if (!active) return
-    flushParagraphs()
+    const { marks, text: body } = splitMarks(active.paragraphs.join('\n'))
+    if (body) active.content.push({ type: 'paragraph', text: body })
+    if (!active.marks && marks) active.marks = marks
     if (active.subquestions.length) {
       const subMarks = active.subquestions.map((part) => part.marks).filter(Number.isFinite)
       if (subMarks.length) active.marks = subMarks.reduce((sum, mark) => sum + mark, 0)
@@ -114,22 +96,12 @@ function parseTextIntoQuestions(text, tables = new Map()) {
   }
 
   for (const line of lines) {
-    if (tables.has(line)) {
-      if (active) {
-        flushSub()
-        flushParagraphs()
-        active.content.push(tables.get(line))
-      } else pendingTables.push(tables.get(line))
-      continue
-    }
     const header = /^(?:question\s+|q\.?\s*)?(\d{1,3})\s*[).:\]]\s*(.*)$/i.exec(line)
     if (header && Number(header[1]) > lastQuestionNumber) {
       flushQuestion()
       lastQuestionNumber = Number(header[1])
       const { marks, text: title } = splitMarks(header[2])
       active = { id: `q-${crypto.randomUUID()}`, number: header[1], order: questions.length + 1, type: 'structured', marks, content: title ? [{ type: 'paragraph', text: title }] : [], subquestions: [], assets: [], source_location: { page_start: 1, page_end: 1 }, paragraphs: [] }
-      active.content.unshift(...pendingTables)
-      pendingTables = []
       continue
     }
     const sub = /^\(?([a-h]|\d{1,2})\)?[).:]\s*(.*)$/i.exec(line)
@@ -141,18 +113,7 @@ function parseTextIntoQuestions(text, tables = new Map()) {
   }
   flushQuestion()
   if (!questions.length && lines.length) {
-    const content = []
-    const paragraphs = []
-    const flush = () => {
-      if (paragraphs.length) content.push({ type: 'paragraph', text: paragraphs.join('\n') })
-      paragraphs.length = 0
-    }
-    for (const line of lines) {
-      if (tables.has(line)) { flush(); content.push(tables.get(line)) }
-      else paragraphs.push(line)
-    }
-    flush()
-    questions.push(normalizeQuestion({ number: '1', content, subquestions: [] }, 0))
+    questions.push(normalizeQuestion({ number: '1', content: [{ type: 'paragraph', text: lines.join('\n') }], subquestions: [] }, 0))
   }
   return questions
 }
@@ -164,11 +125,11 @@ function splitMarks(text = '') {
     : { marks: null, text: text.trim() }
 }
 
-function textImportPaper(text, fileName, tables = new Map()) {
+function textImportPaper(text, fileName) {
   if (!text.trim()) throw new Error('No readable text was found in this file.')
   return {
     title: paperTitleFromFile(fileName), course: '', year: '', semester: '',
-    questions: parseTextIntoQuestions(text, tables),
+    questions: parseTextIntoQuestions(text),
   }
 }
 
@@ -233,8 +194,8 @@ async function importDocx(file) {
   const xml = new TextDecoder().decode(xmlBytes)
   const document = new DOMParser().parseFromString(xml, 'application/xml')
   if (document.querySelector('parsererror')) throw new Error('The Word document contains invalid document XML.')
-  const wordNamespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-  const readParagraph = (paragraph) => {
+  const paragraphs = [...document.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'p')]
+  const lines = paragraphs.map((paragraph) => {
     const output = []
     for (const node of paragraph.getElementsByTagName('*')) {
       if (node.localName === 't') output.push(node.textContent || '')
@@ -242,28 +203,8 @@ async function importDocx(file) {
       else if (node.localName === 'br' || node.localName === 'cr') output.push('\n')
     }
     return output.join('').trim()
-  }
-  const body = document.getElementsByTagNameNS(wordNamespace, 'body')[0]
-  const tables = new Map()
-  const lines = []
-  for (const node of [...(body?.children || [])]) {
-    if (node.localName === 'p') {
-      const text = readParagraph(node)
-      if (text) lines.push(text)
-      continue
-    }
-    if (node.localName !== 'tbl') continue
-    const rows = [...node.getElementsByTagNameNS(wordNamespace, 'tr')].map((row) => (
-      [...row.getElementsByTagNameNS(wordNamespace, 'tc')].map((cell) => (
-        [...cell.getElementsByTagNameNS(wordNamespace, 'p')].map(readParagraph).filter(Boolean).join('\n')
-      ))
-    )).filter((row) => row.some((cell) => cell.trim()))
-    if (!rows.length) continue
-    const token = tableToken(crypto.randomUUID())
-    tables.set(token, tableFromRows(rows))
-    lines.push(token)
-  }
-  return textImportPaper(lines.join('\n'), file.name, tables)
+  }).filter(Boolean)
+  return textImportPaper(lines.join('\n'), file.name)
 }
 
 function bytesToBinary(bytes) {
@@ -391,66 +332,23 @@ function pdfStringsInArray(array, characterMap) {
   return items.map((item) => item.startsWith('(') ? decodePdfLiteral(item, characterMap) : decodePdfHex(item, characterMap)).join('')
 }
 
-function extractPdfText(stream, characterMap, tables) {
-  const positioned = []
-  const number = '[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[Ee][-+]?\\d+)?'
-  const operationPattern = new RegExp(`(${number})\\s+(${number})\\s+(${number})\\s+(${number})\\s+(${number})\\s+(${number})\\s+Tm|(${number})\\s+(${number})\\s+(Td|TD)|T\\*|\\[((?:[^\\]\\\\]|\\\\.)*)\\]\\s*TJ|(<[\\da-f\\s]*>|\\((?:\\\\.|[^\\\\)])*\\))\\s*Tj|\\((?:\\\\.|[^\\\\)])*\\)\\s*['\"]`, 'gi')
+function extractPdfText(stream, characterMap) {
+  const pages = []
   for (const textObject of stream.matchAll(/BT([\s\S]*?)ET/g)) {
     const body = textObject[1]
-    const font = /(?:^|\s)(\d+(?:\.\d+)?)\s+Tf\b/.exec(body)
-    const fontSize = Math.max(5, Number(font?.[1] || 10))
-    let x = 0
-    let y = 0
-    let lineX = 0
-    let lineY = 0
-    for (const match of body.matchAll(operationPattern)) {
-      if (match[1] !== undefined) { x = Number(match[5]); y = Number(match[6]); lineX = x; lineY = y; continue }
-      if (match[7] !== undefined) { x += Number(match[7]); y += Number(match[8]); lineX = x; lineY = y; continue }
-      if (match[0] === 'T*') { x = lineX; y = lineY - fontSize * 1.2; lineY = y; continue }
-      const token = match[10] !== undefined ? `[${match[10]}]` : match[11] || match[0].trim().slice(0, -1).trim()
-      const text = token.startsWith('[') ? pdfStringsInArray(token, characterMap) : token.startsWith('<') ? decodePdfHex(token, characterMap) : decodePdfLiteral(token, characterMap)
-      const clean = text.split('').filter((character) => {
-        const code = character.charCodeAt(0)
-        return code >= 32 || code === 9 || code === 10 || code === 13
-      }).join('').trim()
-      if (clean) positioned.push({ x, y, text: clean, fontSize })
+    let line = ''
+    const operations = /\[((?:[^\]\\]|\\.)*)\]\s*TJ|(<[\da-f\s]*>|\((?:\\.|[^\\)])*\))\s*Tj|\((?:\\.|[^\\)])*\)\s*['"]/gi
+    for (const operation of body.matchAll(operations)) {
+      const token = operation[1] !== undefined ? `[${operation[1]}]` : operation[2] || operation[0].trim().slice(0, -1).trim()
+      line += token.startsWith('[') ? pdfStringsInArray(token, characterMap) : token.startsWith('<') ? decodePdfHex(token, characterMap) : decodePdfLiteral(token, characterMap)
     }
+    const cleanLine = line.split('').filter((character) => {
+      const code = character.charCodeAt(0)
+      return code >= 32 || code === 9 || code === 10 || code === 13
+    }).join('').trim()
+    if (cleanLine) pages.push(cleanLine)
   }
-
-  positioned.sort((left, right) => right.y - left.y || left.x - right.x)
-  const lines = []
-  for (const item of positioned) {
-    let line = lines.find((candidate) => Math.abs(candidate.y - item.y) <= 2.5)
-    if (!line) { line = { y: item.y, cells: [] }; lines.push(line) }
-    line.cells.push(item)
-  }
-  lines.sort((left, right) => right.y - left.y)
-  const rows = lines.map((line) => {
-    line.cells.sort((left, right) => left.x - right.x)
-    const cells = []
-    const cellPositions = []
-    for (const item of line.cells) {
-      const previous = cells[cells.length - 1]
-      const previousItem = line.cells[cells.length - 1]
-      const gap = previousItem ? item.x - (previousItem.x + previousItem.text.length * previousItem.fontSize * 0.48) : 0
-      if (!previous || gap > Math.max(18, item.fontSize * 1.6)) { cells.push(item.text); cellPositions.push(item.x) }
-      else cells[cells.length - 1] = `${previous} ${item.text}`
-    }
-    return { cells, cellPositions, text: cells.join(' ') }
-  })
-
-  const output = []
-  for (let index = 0; index < rows.length;) {
-    if (rows[index].cells.length < 2) { if (rows[index].text) output.push(rows[index].text); index++; continue }
-    let end = index + 1
-    while (end < rows.length && rows[end].cells.length === rows[index].cells.length && rows[end].cellPositions.every((position, column) => Math.abs(position - rows[index].cellPositions[column]) <= 24)) end++
-    if (end - index < 2) { output.push(rows[index].text); index++; continue }
-    const token = tableToken(crypto.randomUUID())
-    tables.set(token, tableFromRows(rows.slice(index, end).map((row) => row.cells)))
-    output.push(token)
-    index = end
-  }
-  return output
+  return pages
 }
 
 async function importPdf(file) {
@@ -460,11 +358,10 @@ async function importPdf(file) {
   if (!signature.startsWith('%PDF-')) throw new Error('This file is not a valid PDF.')
   const streams = await pdfStreams(bytes)
   const characterMap = parsePdfCharacterMap(streams)
-  const tables = new Map()
-  const pages = streams.filter((stream) => stream.includes('BT')).flatMap((stream) => extractPdfText(stream, characterMap, tables)).filter(Boolean)
+  const pages = streams.filter((stream) => stream.includes('BT')).flatMap((stream) => extractPdfText(stream, characterMap)).filter(Boolean)
   const text = pages.join('\n')
   if (!text.trim()) throw new Error('No selectable text was found. This PDF may be scanned; use a text-based PDF, Word document, or JSON import.')
-  return textImportPaper(text, file.name, tables)
+  return textImportPaper(text, file.name)
 }
 
 export async function importPaperFile(file) {
