@@ -51,7 +51,7 @@ Errors use `{ "message": "..." }` JSON.
 | `GET` | `/backend/public/papers/detail?id={id}` | Student bearer token | Read paper details; question content is returned only after it is unlocked. |
 | `POST` | `/backend/public/papers/saved?id={id}` | Student bearer token | Save a paper to the account. |
 | `DELETE` | `/backend/public/papers/saved?id={id}` | Student bearer token | Remove a paper from the account's saved list. |
-| `POST` | `/backend/public/papers/unlock?id={id}` | Student bearer token | Spend 20 coins once to unlock a paper. Free coins are used before purchased coins; repeat requests do not charge again. Returns the unlocked paper and updated account balances. |
+| `POST` | `/backend/public/papers/unlock?id={id}` | Student bearer token | Spend 20 coins to unlock a paper for 24 hours. Free coins are used before purchased coins; repeat requests during the active period do not charge again. After expiry, unlock again to restore access. Returns the unlocked paper, expiry time, and updated account balances. |
 | `POST` | `/backend/public/papers/answers` | Student bearer token | Submit `{ "paperId": "123", "questionKey": "question-id.part-id", "answer": "..." }` for an unlocked paper. The key must identify a real top-level question or nested subquestion. Stores the latest answer per prompt and queues it with `pending` status for marking. |
 | `GET` | `/backend/public/wallet` | Bearer token | Read the current MySQL coin balances and latest 100 wallet transactions. |
 | `GET` | `/backend/public/wallet/operators` | Bearer token | Load mobile money operators from the existing payment service through the backend. |

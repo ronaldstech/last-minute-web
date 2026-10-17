@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import PracticeMode from './PracticeMode.jsx'
 import { hasAnswerablePrompt } from '../utils/paperQuestions.js'
@@ -59,6 +59,9 @@ export default function PaperDetailScreen({ paper, activeTab, balance, sessionTo
   const [unlocking, setUnlocking] = useState(false)
   const [practicing, setPracticing] = useState(false)
   const [actionError, setActionError] = useState('')
+  useEffect(() => {
+    if (!paper.isUnlocked) setPracticing(false)
+  }, [paper.id, paper.isUnlocked])
   const unlock = async () => {
     if (unlocking || paper.isUnlocked) return
     setUnlocking(true)
@@ -68,7 +71,7 @@ export default function PaperDetailScreen({ paper, activeTab, balance, sessionTo
     finally { setUnlocking(false) }
   }
 
-  if (practicing) return <PracticeMode paper={paper} sessionToken={sessionToken} onExit={() => setPracticing(false)} />
+  if (practicing && paper.isUnlocked) return <PracticeMode paper={paper} sessionToken={sessionToken} onExit={() => setPracticing(false)} />
 
   return <section className="paper-detail-screen">
     <button className="back-link" onClick={onBack}>← Back to {activeTab.toLowerCase()}</button>
@@ -78,7 +81,7 @@ export default function PaperDetailScreen({ paper, activeTab, balance, sessionTo
     {loading || paper.detailLoading ? <div className="paper-detail-state"><span className="notification-spinner"/>Loading paper details...</div> : paper.detailError ? <div className="paper-detail-state paper-detail-error" role="alert">{paper.detailError}<button onClick={onRetry}>Try again</button></div> : paper.isUnlocked ? <><button className="practice-launch" onClick={() => setPracticing(true)}><span><Icon name="spark" size={18}/></span><div><strong>Start practice mode</strong><small>Answer at your own pace. Your work saves automatically.</small></div><Icon name="right" size={17}/></button><div className="detail-document paper-detail-document">
       <div className="paper-detail-document-heading"><span><Icon name="file" size={18}/> EXAM PAPER</span><h2>{paper.course || paper.title}</h2><p>{[paper.title, paper.year, paper.semester ? `Semester ${paper.semester}` : ''].filter(Boolean).join(' | ')}</p></div>
       {paper.questions?.length ? <div className="paper-detail-questions">{paper.questions.map((question, index) => <PaperQuestion key={question.id || index} question={question} index={index}/>)}</div> : <div className="paper-detail-state">This paper has no questions yet.</div>}
-    </div></> : <div className="paper-detail-locked"><span className="paper-detail-lock-icon"><Icon name="lock" size={21}/></span><div><strong>Unlock the complete paper</strong><p>This paper contains {Number(paper.questionCount || 0)} questions. Unlock once to view it any time.</p></div><div className="paper-detail-balance"><small>Your balance</small><strong>{balance} coins</strong></div></div>}
+    </div></> : <div className="paper-detail-locked"><span className="paper-detail-lock-icon"><Icon name="lock" size={21}/></span><div><strong>Unlock the complete paper</strong><p>This paper contains {Number(paper.questionCount || 0)} questions. Unlock it for 24 hours; you can unlock it again after it expires.</p></div><div className="paper-detail-balance"><small>Your balance</small><strong>{balance} coins</strong></div></div>}
     {!paper.isUnlocked && !loading && !paper.detailLoading && !paper.detailError && <><button className="primary-button unlock-button" onClick={unlock} disabled={unlocking}><Icon name={unlocking ? 'clock' : 'lock'} size={16}/>{unlocking ? 'Unlocking...' : 'Unlock paper · 20 coins'}</button>{actionError && <p className="paper-detail-error" role="alert">{actionError} {balance < 20 && onGetCoins && <button onClick={onGetCoins}>Get coins</button>}</p>}</>}
   </section>
 }

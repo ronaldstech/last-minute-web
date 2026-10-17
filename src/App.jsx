@@ -124,6 +124,27 @@ function App() {
   }, [session, showNotice])
 
   useEffect(() => {
+    const activeUnlocks = [...papers, ...(selectedPaper ? [selectedPaper] : [])]
+      .filter((paper) => paper.isUnlocked && paper.unlockExpiresAt != null && Number.isFinite(Number(paper.unlockExpiresAt)))
+    if (!activeUnlocks.length) return undefined
+    const expiresAt = Math.min(...activeUnlocks.map((paper) => Number(paper.unlockExpiresAt)))
+    const timer = window.setTimeout(() => {
+      const now = Date.now()
+      setPapers((current) => current.map((paper) => (
+        paper.isUnlocked && Number(paper.unlockExpiresAt) <= now
+          ? { ...paper, isUnlocked: false, unlockExpiresAt: null }
+          : paper
+      )))
+      setSelectedPaper((current) => (
+        current?.isUnlocked && Number(current.unlockExpiresAt) <= now
+          ? { ...current, isUnlocked: false, unlockExpiresAt: null, questions: undefined }
+          : current
+      ))
+    }, Math.max(0, expiresAt - Date.now()))
+    return () => window.clearTimeout(timer)
+  }, [papers, selectedPaper])
+
+  useEffect(() => {
     if (session?.authProvider !== 'php-mysql' || !initialPage.selectedPaper?.id || selectedPaper?.id !== initialPage.selectedPaper.id) return undefined
     let active = true
     getStudentPaper(session.token, initialPage.selectedPaper.id).then((paper) => {
@@ -183,7 +204,7 @@ function App() {
     const result = await unlockStudentPaper(session.token, paperId)
     const [decorated] = decoratePapers([result.paper])
     setSelectedPaper(decorated)
-    setPapers((current) => current.map((paper) => paper.id === paperId ? { ...paper, isUnlocked: true } : paper))
+    setPapers((current) => current.map((paper) => paper.id === paperId ? { ...paper, isUnlocked: true, unlockExpiresAt: result.paper.unlockExpiresAt } : paper))
     if (result.user) setProfile((current) => ({ ...current, ...result.user }))
     showNotice(result.alreadyUnlocked ? 'This paper is already unlocked.' : 'Paper unlocked. You can now view all questions.')
   }

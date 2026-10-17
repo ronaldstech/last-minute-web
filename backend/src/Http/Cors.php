@@ -17,9 +17,13 @@ final class Cors
         ) ?? '';
         $origins = array_filter(array_map('trim', explode(',', $configured)));
 
-        // The deployed frontend must remain allowed when an older host config
-        // still contains only the former production domain.
-        $origins = array_unique(array_merge($origins, ['https://apexspacemw.com', 'https://www.apexspacemw.com']));
+        // Keep the known production frontend origins allowed when an older
+        // host config does not yet list them.
+        $origins = array_unique(array_merge($origins, [
+            'https://apexspacemw.com',
+            'https://www.apexspacemw.com',
+            'https://last.nkk-sec.com',
+        ]));
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         if ($origin !== '' && in_array($origin, $origins, true)) {
             header("Access-Control-Allow-Origin: {$origin}");
