@@ -4,6 +4,12 @@
     Require all granted
 </IfModule>
 
+<Files ".user.ini">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</Files>
+
 # Rewrite API routes to the public front controller.
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
