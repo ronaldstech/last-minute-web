@@ -6,7 +6,9 @@ export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
 
   return {
-    base: env.VITE_BASE_PATH || (command === 'build' ? '/rt/last_minute/' : '/'),
+    // Vercel serves the app from the domain root. Set VITE_BASE_PATH=/rt/last_minute/
+    // when building for a Hostinger subdirectory instead.
+    base: env.VITE_BASE_PATH || '/',
     plugins: [react()],
     server: {
       proxy: {
