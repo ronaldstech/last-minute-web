@@ -51,8 +51,6 @@ export default function HomeScreen({ query, setQuery, papers, onNavigate, onOpen
     <section className="section-block recent-section">
       <div className="section-heading"><div><span className="section-kicker">FRESH FROM THE LIBRARY</span><h2>Recently added</h2></div><button className="text-link" onClick={() => onNavigate('Papers')}>Browse all papers <Icon name="right" size={13} /></button></div>
       <PaperList papers={papers.slice(0, 3)} savedIds={savedIds} onOpen={onOpenPaper} onToggleSaved={onToggleSaved} loading={loading} />
-      <button className="saved-link" onClick={() => onNavigate('Saved')}><Icon name="bookmark" size={15} /> <span>Your saved papers</span></button>
     </section>
-    <footer>Made for curious minds <span>✦</span></footer>
   </>
 }
