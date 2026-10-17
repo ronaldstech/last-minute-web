@@ -3,6 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { PaperQuestion } from './PaperDetailScreen.jsx'
 import { hasAnswerablePrompt } from '../utils/paperQuestions.js'
 import { markPracticeAnswer, submitPracticeAnswer } from '../services/studentPapers.js'
+import { hasPracticeAnswerContent, practiceAnswerText } from '../utils/practiceAnswers.js'
 import './PracticeMode.css'
 
 function readProgress(key, count) {
@@ -19,10 +20,10 @@ function answerFieldCount(question) {
 
 function hasAnsweredQuestion(question, index, answers) {
   const rootKey = String(question.id || index)
-  if (hasAnswerablePrompt(question) && answers[rootKey]?.trim()) return true
+  if (hasAnswerablePrompt(question) && hasPracticeAnswerContent(answers[rootKey])) return true
   const hasAnsweredSubquestion = (items = [], parentKey = rootKey) => items.some((item, itemIndex) => {
     const key = `${parentKey}.${item.id || itemIndex}`
-    return (!item.subquestions?.length && Boolean(answers[key]?.trim())) || hasAnsweredSubquestion(item.subquestions || [], key)
+    return (!item.subquestions?.length && hasPracticeAnswerContent(answers[key])) || hasAnsweredSubquestion(item.subquestions || [], key)
   })
   return hasAnsweredSubquestion(question.subquestions || [])
 }
@@ -48,7 +49,7 @@ export default function PracticeMode({ paper, sessionToken, onExit }) {
     try { localStorage.setItem(storageKey, JSON.stringify({ answers, submissions, index, startedAt })) } catch { /* Continue practice if storage is unavailable. */ }
   }, [answers, submissions, index, startedAt, storageKey])
 
-  const answered = Object.values(answers).filter((answer) => answer.trim()).length
+  const answered = Object.values(answers).filter(hasPracticeAnswerContent).length
   const totalAnswerFields = questions.reduce((total, question) => total + answerFieldCount(question), 0)
   const updateAnswer = (key, value) => {
     setAnswers((current) => ({ ...current, [key]: value }))
@@ -60,8 +61,9 @@ export default function PracticeMode({ paper, sessionToken, onExit }) {
     setSubmitting((current) => ({ ...current, [key]: true }))
     setSubmitErrors((current) => ({ ...current, [key]: '' }))
     try {
-      const submission = await submitPracticeAnswer(sessionToken, paper.id, key, answers[key] || '')
-      const marking = await markPracticeAnswer({ token: sessionToken, paper, questionKey: key, answer: answers[key] || '' })
+      const answer = practiceAnswerText(answers[key] || '')
+      const submission = await submitPracticeAnswer(sessionToken, paper.id, key, answer)
+      const marking = await markPracticeAnswer({ token: sessionToken, paper, questionKey: key, answer })
       setSubmissions((current) => ({ ...current, [key]: { ...submission, status: 'marked', marking } }))
     } catch (error) {
       setSubmitErrors((current) => ({ ...current, [key]: error.message || 'Could not submit this answer. Try again.' }))

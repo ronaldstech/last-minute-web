@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import PracticeMode from './PracticeMode.jsx'
 import { hasAnswerablePrompt } from '../utils/paperQuestions.js'
+import { decodeTableAnswer, encodeTableAnswer, hasPracticeAnswerContent, practiceAnswerText } from '../utils/practiceAnswers.js'
 import './PaperDetailScreen.css'
 
 function ContentBlock({ block }) {
@@ -18,11 +19,21 @@ function ContentBlock({ block }) {
 
 function PracticeAnswerField({ answerKey, answer, submission, submitting, error, onChange, onSubmit }) {
   const inputId = `practice-answer-${answerKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+  const table = decodeTableAnswer(answer)
+  const updateTable = (changes) => onChange(answerKey, encodeTableAnswer({ ...table, ...changes }))
+  const selectTable = () => { if (table) return; onChange(answerKey, encodeTableAnswer(answer?.trim()
+    ? { columns: ['Answer'], rows: [[answer]] }
+    : { columns: ['Column 1', 'Column 2'], rows: [['', '']]})) }
+  const selectText = () => onChange(answerKey, practiceAnswerText(answer))
+  const updateColumn = (columnIndex, value) => updateTable({ columns: table.columns.map((column, index) => index === columnIndex ? value : column) })
+  const updateCell = (rowIndex, columnIndex, value) => updateTable({ rows: table.rows.map((row, index) => index === rowIndex ? row.map((cell, cellIndex) => cellIndex === columnIndex ? value : cell) : row) })
+  const addColumn = () => updateTable({ columns: [...table.columns, `Column ${table.columns.length + 1}`], rows: table.rows.map((row) => [...row, '']) })
+  const addRow = () => updateTable({ rows: [...table.rows, table.columns.map(() => '')] })
   return <div className="practice-answer-field">
-    <label className="practice-answer-label" htmlFor={inputId}>Your answer <span>Saved automatically</span></label>
-    <textarea id={inputId} value={answer || ''} disabled={submitting} onChange={(event) => onChange(answerKey, event.target.value)} placeholder="Write your answer here…" rows={4}/>
+    <div className="practice-answer-toolbar"><strong>Your answer</strong><div className="practice-answer-modes" role="group" aria-label="Answer format"><button type="button" className={!table ? 'is-active' : ''} aria-pressed={!table} disabled={submitting} onClick={selectText}>Text</button><button type="button" className={table ? 'is-active' : ''} aria-pressed={Boolean(table)} disabled={submitting} onClick={selectTable}>Table</button></div></div>
+    {table ? <div className="practice-table-editor"><div className="practice-table-scroll"><table><thead><tr>{table.columns.map((column, columnIndex) => <th key={columnIndex}><input aria-label={`Table column ${columnIndex + 1}`} value={column} disabled={submitting} onChange={(event) => updateColumn(columnIndex, event.target.value)} placeholder={`Column ${columnIndex + 1}`}/></th>)}</tr></thead><tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{table.columns.map((_, columnIndex) => <td key={columnIndex}><input aria-label={`Row ${rowIndex + 1}, column ${columnIndex + 1}`} value={row[columnIndex] || ''} disabled={submitting} onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)} placeholder="Enter detail"/></td>)}</tr>)}</tbody></table></div><div className="practice-table-actions"><button type="button" disabled={submitting} onClick={addRow}>+ Add row</button><button type="button" disabled={submitting} onClick={addColumn}>+ Add column</button></div></div> : <textarea id={inputId} value={answer || ''} disabled={submitting} onChange={(event) => onChange(answerKey, event.target.value)} placeholder="Write your answer here…" rows={4}/>}
     <div className="practice-submit-row">
-      <button className="practice-submit" type="button" disabled={submitting || !answer?.trim()} onClick={() => onSubmit(answerKey)}><Icon name={submitting ? 'clock' : 'spark'} size={14}/>{submitting ? 'Submitting…' : submission ? 'Submit again' : 'Submit for marking'}</button>
+      <button className="practice-submit" type="button" disabled={submitting || !hasPracticeAnswerContent(answer)} onClick={() => onSubmit(answerKey)}><Icon name={submitting ? 'clock' : 'spark'} size={14}/>{submitting ? 'Submitting…' : submission ? 'Submit again' : 'Submit for marking'}</button>
       {submission && <span className="practice-submit-status"><Icon name="check" size={13}/>{submission.marking ? `Marked ${submission.marking.score} / ${submission.marking.maxMarks}` : `Submitted · ${submission.status === 'pending' ? 'awaiting marking' : submission.status}`}</span>}
       {error && <span className="practice-submit-error" role="alert">{error}</span>}
     </div>
