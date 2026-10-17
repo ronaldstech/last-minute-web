@@ -37,13 +37,13 @@ function flattenDiscussionQuestions(questions = []) {
     const children = question.subquestions || []
     const text = questionContent(question)
     if (!children.length) {
-      if (text.length) prompts.push({
+      if (text.length || question.images?.length) prompts.push({
         number, text: question.text || text.map((block) => block.text || block.title || '').filter(Boolean).join('\n'),
-        content: text, assets: question.assets || [], marks: question.marks ?? null, context,
+        content: text, images: question.images || [], assets: question.assets || [], marks: question.marks ?? null, context,
       })
       return
     }
-    const nextContext = [...context, { number, text: question.text || text.map((block) => block.text || block.title || '').filter(Boolean).join('\n'), content: text, assets: question.assets || [], marks: question.marks ?? null }]
+    const nextContext = [...context, { number, text: question.text || text.map((block) => block.text || block.title || '').filter(Boolean).join('\n'), content: text, images: question.images || [], assets: question.assets || [], marks: question.marks ?? null }]
     children.forEach((part, index) => {
       const partNumber = part.number || String.fromCharCode(97 + index)
       visit(part, `${number}(${partNumber})`, nextContext)

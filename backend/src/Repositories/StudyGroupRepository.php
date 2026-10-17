@@ -159,9 +159,11 @@ final class StudyGroupRepository
         $content = $this->questionBlocks($question);
         if (!$children) {
             $text = $this->questionText($question, $content);
-            if ($text !== '') {
+            $images = is_array($question['images'] ?? null) ? $question['images'] : [];
+            if ($text !== '' || $images) {
                 $prompts[] = [
                     'number' => $number, 'text' => $text, 'content' => $content,
+                    'images' => $images,
                     'assets' => is_array($question['assets'] ?? null) ? $question['assets'] : [],
                     'marks' => $question['marks'] ?? null, 'context' => $context,
                 ];
@@ -172,7 +174,8 @@ final class StudyGroupRepository
         $nextContext = $context;
         $nextContext[] = [
             'number' => $number, 'text' => $this->questionText($question, $content),
-            'content' => $content, 'assets' => is_array($question['assets'] ?? null) ? $question['assets'] : [],
+            'content' => $content, 'images' => is_array($question['images'] ?? null) ? $question['images'] : [],
+            'assets' => is_array($question['assets'] ?? null) ? $question['assets'] : [],
             'marks' => $question['marks'] ?? null,
         ];
         foreach ($children as $index => $part) {

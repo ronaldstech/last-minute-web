@@ -15,7 +15,7 @@ function readProgress(key, count) {
 }
 
 function answerFieldCount(question) {
-  const countSubquestions = (items = []) => items.reduce((total, item) => total + (item.subquestions?.length ? 0 : 1) + countSubquestions(item.subquestions || []), 0)
+  const countSubquestions = (items = []) => items.reduce((total, item) => total + 1 + countSubquestions(item.subquestions || []), 0)
   return Number(hasAnswerablePrompt(question)) + countSubquestions(question.subquestions || [])
 }
 
@@ -24,7 +24,7 @@ function hasAnsweredQuestion(question, index, answers) {
   if (hasAnswerablePrompt(question) && hasPracticeAnswerContent(answers[rootKey])) return true
   const hasAnsweredSubquestion = (items = [], parentKey = rootKey) => items.some((item, itemIndex) => {
     const key = `${parentKey}.${item.id || itemIndex}`
-    return (!item.subquestions?.length && hasPracticeAnswerContent(answers[key])) || hasAnsweredSubquestion(item.subquestions || [], key)
+    return hasPracticeAnswerContent(answers[key]) || hasAnsweredSubquestion(item.subquestions || [], key)
   })
   return hasAnsweredSubquestion(question.subquestions || [])
 }

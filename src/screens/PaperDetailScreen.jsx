@@ -54,7 +54,7 @@ function Subquestions({ items = [], depth = 0, parentKey = '', answers = {}, sub
     {items.map((item, index) => {
       const answerKey = `${parentKey}.${item.id || index}`
       return <article className="paper-detail-subquestion" key={item.id || `${depth}-${index}`}><div className="paper-detail-subquestion-heading"><strong>{item.number || String.fromCharCode(97 + index)}.</strong><span>{item.text}</span>{item.marks !== null && item.marks !== undefined && <small>[{item.marks} marks]</small>}</div><QuestionImages images={item.images || []}/>
-        {onPracticeAnswer && !item.subquestions?.length && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/></div>}
+        {onPracticeAnswer && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/></div>}
         <Subquestions items={item.subquestions || []} depth={depth + 1} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit}/></article>
     })}
   </div>
