@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import PaperUnlockCountdown from '../components/PaperUnlockCountdown.jsx'
 import { PaperQuestion } from './PaperDetailScreen.jsx'
 import { hasAnswerablePrompt } from '../utils/paperQuestions.js'
 import { markPracticeAnswer, submitPracticeAnswer } from '../services/studentPapers.js'
@@ -76,7 +77,7 @@ export default function PracticeMode({ paper, sessionToken, onExit }) {
 
   return <section className="practice-shell">
     <div className="practice-heading"><button className="practice-back" onClick={onExit}><Icon name="left" size={15}/> Paper details</button><span className="practice-live"><i/> PRACTICE SESSION</span></div>
-    <div className="practice-title"><div><span>{paper.course || paper.subject}</span><h1>{finished ? 'Session complete' : 'Practice mode'}</h1><p>{paper.title} · {questions.length} questions</p></div><div className="practice-clock"><Icon name="clock" size={16}/><span>{formatTime(elapsed)}</span><small>TIME ELAPSED</small></div></div>
+    <div className="practice-title"><div><span>{paper.course || paper.subject}</span><h1>{finished ? 'Session complete' : 'Practice mode'}</h1><p>{paper.title} · {questions.length} questions</p></div><div className="practice-time-cards"><PaperUnlockCountdown expiresAt={paper.unlockExpiresAt}/><div className="practice-clock"><Icon name="clock" size={16}/><span>{formatTime(elapsed)}</span><small>TIME ELAPSED</small></div></div></div>
     {finished ? <div className="practice-complete"><span className="practice-complete-icon"><Icon name="check" size={23}/></span><h2>Good work. Session complete.</h2><p>You answered {answered} of {totalAnswerFields} question and subquestion prompts in {formatTime(elapsed)}. Your answers are saved on this device.</p><div className="practice-complete-actions"><button className="practice-secondary" onClick={() => setFinished(false)}>Review answers</button><button className="practice-primary" onClick={() => { setAnswers({}); setIndex(0); setFinished(false); try { localStorage.removeItem(storageKey) } catch { /* Ignore storage errors. */ } }}>Start again</button></div></div> : <>
       <div className="practice-progress"><div><span>Question {index + 1} of {questions.length}</span><span>{answered} answered</span></div><div className="practice-progress-track"><i style={{ width: `${((index + 1) / questions.length) * 100}%` }}/></div></div>
       <div className="practice-question-card"><PaperQuestion question={questions[index]} index={index} answers={answers} submissions={submissions} submitting={submitting} errors={submitErrors} onPracticeAnswer={updateAnswer} onPracticeSubmit={submitAnswer}/></div>

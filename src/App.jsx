@@ -6,6 +6,7 @@ import CoinsScreen from './screens/CoinsScreen.jsx'
 import GroupsScreen from './screens/GroupsScreen.jsx'
 import HomeScreen from './screens/HomeScreen.jsx'
 import PaperDetailScreen from './screens/PaperDetailScreen.jsx'
+import { submitPaperReport } from './services/paperReports.js'
 import NotificationsScreen from './screens/NotificationsScreen.jsx'
 import ProfileScreen from './screens/ProfileScreen.jsx'
 import PapersScreen from './screens/PapersScreen.jsx'
@@ -240,6 +241,7 @@ function App() {
     if (selectedPaper) {
       return <PaperDetailScreen
         paper={selectedPaper}
+        session={session}
         sessionToken={session.token}
         activeTab={activeTab}
         balance={coinBalance}
@@ -247,6 +249,7 @@ function App() {
         showNotice={showNotice}
         saved={savedIds.includes(selectedPaper.id)}
         onToggleSaved={() => toggleSaved(selectedPaper.id)}
+        onReport={(category, details) => submitPaperReport(session, selectedPaper, category, details)}
         onUnlock={() => unlockPaper(selectedPaper.id)}
         onGetCoins={() => navigate('Coins')}
         onRetry={() => openPaper(selectedPaper)}

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import PaperUnlockCountdown from '../components/PaperUnlockCountdown.jsx'
+import { listPaperReports } from '../services/paperReports.js'
 import PracticeMode from './PracticeMode.jsx'
 import { hasAnswerablePrompt } from '../utils/paperQuestions.js'
 import { decodeTableAnswer, encodeTableAnswer, hasPracticeAnswerContent, practiceAnswerText } from '../utils/practiceAnswers.js'
@@ -66,10 +68,30 @@ export function PaperQuestion({ question, index, answers, submissions, submittin
   </article>
 }
 
-export default function PaperDetailScreen({ paper, activeTab, balance, sessionToken, onBack, saved = false, onToggleSaved, onUnlock, onGetCoins, onRetry, loading = false }) {
+export default function PaperDetailScreen({ paper, activeTab, balance, session, sessionToken, onBack, saved = false, onToggleSaved, onUnlock, onReport, onGetCoins, onRetry, loading = false }) {
   const [unlocking, setUnlocking] = useState(false)
   const [practicing, setPracticing] = useState(false)
   const [actionError, setActionError] = useState('')
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportCategory, setReportCategory] = useState('Incorrect content')
+  const [reportDetails, setReportDetails] = useState('')
+  const [reporting, setReporting] = useState(false)
+  const [reportError, setReportError] = useState('')
+  const [paperReports, setPaperReports] = useState([])
+  const [loadingPaperReports, setLoadingPaperReports] = useState(true)
+  const [paperReportsError, setPaperReportsError] = useState('')
+  const [reportReload, setReportReload] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    setLoadingPaperReports(true)
+    listPaperReports(session, paper.id).then((reports) => {
+      if (active) { setPaperReports(reports); setPaperReportsError('') }
+    }).catch((error) => {
+      if (active) setPaperReportsError(error.message || 'Could not load reported issues.')
+    }).finally(() => { if (active) setLoadingPaperReports(false) })
+    return () => { active = false }
+  }, [paper.id, reportReload, session])
   useEffect(() => {
     if (!paper.isUnlocked) setPracticing(false)
   }, [paper.id, paper.isUnlocked])
@@ -81,18 +103,34 @@ export default function PaperDetailScreen({ paper, activeTab, balance, sessionTo
     catch (error) { setActionError(error.message || 'Could not unlock this paper.') }
     finally { setUnlocking(false) }
   }
+  const submitReport = async (event) => {
+    event.preventDefault()
+    if (reporting) return
+    setReporting(true)
+    setReportError('')
+    try {
+      await onReport(reportCategory, reportDetails)
+      setReportOpen(false)
+      setReportDetails('')
+      setReportCategory('Incorrect content')
+      setReportReload((current) => current + 1)
+    } catch (error) { setReportError(error.message || 'Could not submit this report.') }
+    finally { setReporting(false) }
+  }
 
   if (practicing && paper.isUnlocked) return <PracticeMode paper={paper} sessionToken={sessionToken} onExit={() => setPracticing(false)} />
 
   return <section className="paper-detail-screen">
     <button className="back-link" onClick={onBack}>← Back to {activeTab.toLowerCase()}</button>
-    <div className="paper-detail-topline"><span className={`paper-subject ${paper.tone}-text`}>{paper.subject}</span><div className="paper-detail-actions">{onToggleSaved && <button className={`paper-detail-save ${saved ? 'is-saved' : ''}`} onClick={onToggleSaved}><Icon name="bookmark" size={15}/>{saved ? 'Saved' : 'Save paper'}</button>}</div></div>
+    <div className="paper-detail-topline"><span className={`paper-subject ${paper.tone}-text`}>{paper.subject}</span><div className="paper-detail-actions">{onReport && <button className="paper-detail-save" onClick={() => { setReportError(''); setReportOpen(true) }}><Icon name="bell" size={15}/>Report issue</button>}{onToggleSaved && <button className={`paper-detail-save ${saved ? 'is-saved' : ''}`} onClick={onToggleSaved}><Icon name="bookmark" size={15}/>{saved ? 'Saved' : 'Save paper'}</button>}</div></div>
     <h1>{paper.course || paper.title || 'Question paper'}</h1>
     <p>{[paper.title, paper.year, paper.semester ? `Semester ${paper.semester}` : '', paper.departmentName, `${Number(paper.questionCount || paper.questions?.length || 0)} questions`].filter(Boolean).join(' | ')}</p>
-    {loading || paper.detailLoading ? <div className="paper-detail-state"><span className="notification-spinner"/>Loading paper details...</div> : paper.detailError ? <div className="paper-detail-state paper-detail-error" role="alert">{paper.detailError}<button onClick={onRetry}>Try again</button></div> : paper.isUnlocked ? <><button className="practice-launch" onClick={() => setPracticing(true)}><span><Icon name="spark" size={18}/></span><div><strong>Start practice mode</strong><small>Answer at your own pace. Your work saves automatically.</small></div><Icon name="right" size={17}/></button><div className="detail-document paper-detail-document">
+    <section className="paper-reported-issues"><div className="paper-reported-issues-heading"><div><span>COMMUNITY REPORTS</span><h2>Reported issues <b>{paperReports.length}</b></h2></div></div>{loadingPaperReports ? <p className="paper-reported-issues-state">Loading reported issues...</p> : paperReportsError ? <p className="paper-reported-issues-state error" role="alert">{paperReportsError}</p> : paperReports.length ? <div className="paper-reported-issues-list">{paperReports.map((report) => <article key={report.id}><header><strong>{report.category || 'Other issue'}</strong><span className={`paper-report-status ${report.status || 'open'}`}>{(report.status || 'open').replace(/^./, (letter) => letter.toUpperCase())}</span></header><p>{report.details || 'No additional details.'}</p><small>{report.createdAt ? new Date(report.createdAt).toLocaleDateString() : 'Date unavailable'}</small></article>)}</div> : <p className="paper-reported-issues-state">No issues have been reported for this paper.</p>}</section>
+    {loading || paper.detailLoading ? <div className="paper-detail-state"><span className="notification-spinner"/>Loading paper details...</div> : paper.detailError ? <div className="paper-detail-state paper-detail-error" role="alert">{paper.detailError}<button onClick={onRetry}>Try again</button></div> : paper.isUnlocked ? <><div className="paper-unlock-summary"><PaperUnlockCountdown expiresAt={paper.unlockExpiresAt}/></div><button className="practice-launch" onClick={() => setPracticing(true)}><span><Icon name="spark" size={18}/></span><div><strong>Start practice mode</strong><small>Answer at your own pace. Your work saves automatically.</small></div><Icon name="right" size={17}/></button><div className="detail-document paper-detail-document">
       <div className="paper-detail-document-heading"><span><Icon name="file" size={18}/> EXAM PAPER</span><h2>{paper.course || paper.title}</h2><p>{[paper.title, paper.year, paper.semester ? `Semester ${paper.semester}` : ''].filter(Boolean).join(' | ')}</p></div>
       {paper.questions?.length ? <div className="paper-detail-questions">{paper.questions.map((question, index) => <PaperQuestion key={question.id || index} question={question} index={index}/>)}</div> : <div className="paper-detail-state">This paper has no questions yet.</div>}
     </div></> : <div className="paper-detail-locked"><span className="paper-detail-lock-icon"><Icon name="lock" size={21}/></span><div><strong>Unlock the complete paper</strong><p>This paper contains {Number(paper.questionCount || 0)} questions. Unlock it for 24 hours; you can unlock it again after it expires.</p></div><div className="paper-detail-balance"><small>Your balance</small><strong>{balance} coins</strong></div></div>}
     {!paper.isUnlocked && !loading && !paper.detailLoading && !paper.detailError && <><button className="primary-button unlock-button" onClick={unlock} disabled={unlocking}><Icon name={unlocking ? 'clock' : 'lock'} size={16}/>{unlocking ? 'Unlocking...' : 'Unlock paper · 20 coins'}</button>{actionError && <p className="paper-detail-error" role="alert">{actionError} {balance < 20 && onGetCoins && <button onClick={onGetCoins}>Get coins</button>}</p>}</>}
+    {reportOpen && <div className="paper-report-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !reporting) setReportOpen(false) }}><form className="paper-report-dialog" role="dialog" aria-modal="true" aria-labelledby="paper-report-title" onSubmit={submitReport}><header><div><span>HELP IMPROVE THE LIBRARY</span><h2 id="paper-report-title">Report a paper issue</h2><p>{paper.course || paper.title || 'This paper'}</p></div><button type="button" aria-label="Close report form" disabled={reporting} onClick={() => setReportOpen(false)}>×</button></header><label>Issue type<select value={reportCategory} onChange={(event) => setReportCategory(event.target.value)} disabled={reporting}><option>Incorrect content</option><option>Missing content</option><option>Wrong paper details</option><option>Formatting issue</option><option>Other</option></select></label><label>What should we review?<textarea required maxLength={2000} rows={5} value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} placeholder="Describe the issue so our team can find it." disabled={reporting}/><small>{reportDetails.length}/2000 characters</small></label>{reportError && <p className="paper-report-error" role="alert">{reportError}</p>}<footer><button type="button" disabled={reporting} onClick={() => setReportOpen(false)}>Cancel</button><button type="submit" disabled={reporting || !reportDetails.trim()}>{reporting ? 'Sending…' : 'Send report'}</button></footer></form></div>}
   </section>
 }

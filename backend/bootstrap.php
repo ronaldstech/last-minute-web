@@ -10,6 +10,7 @@ use LastMinute\Controllers\ProfileController;
 use LastMinute\Controllers\AdminPaperController;
 use LastMinute\Controllers\UserPaperController;
 use LastMinute\Controllers\PracticeAnswerController;
+use LastMinute\Controllers\PaperReportController;
 use LastMinute\Controllers\WalletController;
 use LastMinute\Controllers\StudyGroupController;
 use LastMinute\Http\Request;
@@ -44,6 +45,7 @@ function last_minute_router(): Router
     $adminPapers = new AdminPaperController(new \LastMinute\Repositories\AdminPaperRepository($pdo), $authenticate);
     $userPapers = new UserPaperController(new \LastMinute\Repositories\UserPaperRepository($pdo), $authenticate);
     $practiceAnswers = new PracticeAnswerController(new \LastMinute\Repositories\PracticeAnswerRepository($pdo), $authenticate);
+    $paperReports = new PaperReportController(new \LastMinute\Repositories\PaperReportRepository($pdo), $authenticate);
     // Load wallet classes only when a wallet route is called, so a partial
     // wallet deployment cannot take unrelated account and paper routes down.
     $walletEndpoint = static function (string $method) use ($pdo, $authenticate): callable {
@@ -73,12 +75,16 @@ function last_minute_router(): Router
     $router->add('POST', '/admin/papers', [$adminPapers, 'create']);
     $router->add('PATCH', '/admin/papers', [$adminPapers, 'update']);
     $router->add('DELETE', '/admin/papers', [$adminPapers, 'delete']);
+    $router->add('GET', '/admin/paper-reports', [$paperReports, 'index']);
+    $router->add('PATCH', '/admin/paper-reports', [$paperReports, 'update']);
     $router->add('GET', '/papers', [$userPapers, 'index']);
     $router->add('GET', '/papers/detail', [$userPapers, 'show']);
     $router->add('POST', '/papers/saved', [$userPapers, 'save']);
     $router->add('DELETE', '/papers/saved', [$userPapers, 'unsave']);
     $router->add('POST', '/papers/unlock', [$userPapers, 'unlock']);
     $router->add('POST', '/papers/answers', [$practiceAnswers, 'submit']);
+    $router->add('POST', '/papers/reports', [$paperReports, 'create']);
+    $router->add('GET', '/papers/reports', [$paperReports, 'forPaper']);
     $router->add('PATCH', '/profile', [$profile, 'update']);
     $router->add('GET', '/academics', [$adminAcademics, 'catalog']);
     $router->add('GET', '/wallet', $walletEndpoint('show'));

@@ -53,6 +53,10 @@ Errors use `{ "message": "..." }` JSON.
 | `DELETE` | `/backend/public/papers/saved?id={id}` | Student bearer token | Remove a paper from the account's saved list. |
 | `POST` | `/backend/public/papers/unlock?id={id}` | Student bearer token | Spend 20 coins to unlock a paper for 24 hours. Free coins are used before purchased coins; repeat requests during the active period do not charge again. After expiry, unlock again to restore access. Returns the unlocked paper, expiry time, and updated account balances. |
 | `POST` | `/backend/public/papers/answers` | Student bearer token | Submit `{ "paperId": "123", "questionKey": "question-id.part-id", "answer": "..." }` for an unlocked paper. The key must identify a real top-level question or nested subquestion. Stores the latest answer per prompt and queues it with `pending` status for marking. |
+| `POST` | `/backend/public/papers/reports` | Student bearer token | Report `{ "paperId": "123", "category": "Incorrect content", "details": "..." }`. Categories are Incorrect content, Missing content, Wrong paper details, Formatting issue, and Other. Reports start with `open` status. |
+| `GET` | `/backend/public/papers/reports?paperId={id}` | Student bearer token | List reported issues for a paper, including category, description, and review status. Reporter identity is private. |
+| `GET` | `/backend/public/admin/paper-reports?limit=25&cursor=` | Admin bearer token | Page through submitted paper reports, including reporter and paper details. Returns `reports` and `nextCursor`. |
+| `PATCH` | `/backend/public/admin/paper-reports?id={id}` | Admin bearer token | Update `{ "status": "open|reviewing|resolved" }` for a paper report. |
 | `GET` | `/backend/public/wallet` | Bearer token | Read the current MySQL coin balances and latest 100 wallet transactions. |
 | `GET` | `/backend/public/wallet/operators` | Bearer token | Load mobile money operators from the existing payment service through the backend. |
 | `POST` | `/backend/public/wallet/transactions` | Bearer token | Create and initialize a top-up using `{ "packId", "operatorId", "operatorName", "mobile" }`. Coin amounts and MWK charges are fixed by the backend pack catalog. |
@@ -85,6 +89,8 @@ On Hostinger, create `backend/config.php` from `config.php.example` and enter th
 Admin user routes resolve the current bearer session and read the administrator role from MySQL on each request. Suspended accounts cannot sign in or use an existing session. The user list returns only public account fields and never includes password hashes.
 
 The AI marking endpoint uses this backend's `bootstrap.php`, database settings, and active bearer sessions to record per-question usage. Group discussion requests are tagged with the group and discussion IDs so administrators can review group usage at `/admin/marking`. Run migration `010_add_marking_usage_events.sql` before using the marker against an existing database. Run migration `015_add_group_marking_analytics.sql` after migrations `012` through `014`; it adds group attribution fields and backfills older group events when their response records still exist. The public `marking.php` wrapper exposes the marker while the backend root `.htaccess` continues to block direct access to private backend files. Run migration `011_add_wallet_transactions.sql` on existing databases before opening the Coins screen.
+
+Run migration `016_add_paper_reports.sql` on existing databases before accepting reports through the PHP/MySQL backend.
 
 To grant the first administrator, update the account directly in MySQL after registering it: `UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';`. Replace the address with the registered account email.
 
