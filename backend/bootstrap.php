@@ -5,6 +5,7 @@ use LastMinute\Config\Database;
 use LastMinute\Controllers\AuthController;
 use LastMinute\Controllers\AdminUserController;
 use LastMinute\Controllers\AdminAcademicController;
+use LastMinute\Controllers\AdminMarkingController;
 use LastMinute\Controllers\ProfileController;
 use LastMinute\Controllers\AdminPaperController;
 use LastMinute\Controllers\UserPaperController;
@@ -37,6 +38,7 @@ function last_minute_router(): Router
     $controller = new AuthController($auth, new Authenticate($sessions));
     $authenticate = new Authenticate($sessions);
     $adminUsers = new AdminUserController(new \LastMinute\Repositories\AdminUserRepository($pdo), $authenticate);
+    $adminMarking = new AdminMarkingController(new \LastMinute\Repositories\AdminMarkingRepository($pdo), $authenticate);
     $adminAcademics = new AdminAcademicController(new \LastMinute\Repositories\AcademicStructureRepository($pdo), $authenticate);
     $profile = new ProfileController(new \LastMinute\Repositories\ProfileRepository($pdo), $authenticate);
     $adminPapers = new AdminPaperController(new \LastMinute\Repositories\AdminPaperRepository($pdo), $authenticate);
@@ -62,6 +64,7 @@ function last_minute_router(): Router
     $router->add('GET', '/auth/me', [$controller, 'me']);
     $router->add('POST', '/auth/logout', [$controller, 'logout']);
     $router->add('GET', '/admin/users', [$adminUsers, 'index']);
+    $router->add('GET', '/admin/marking', [$adminMarking, 'index']);
     $router->add('PATCH', '/admin/users', [$adminUsers, 'update']);
     $router->add('POST', '/admin/users/gift', [$adminUsers, 'gift']);
     $router->add('GET', '/admin/academics', [$adminAcademics, 'index']);

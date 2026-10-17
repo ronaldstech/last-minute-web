@@ -27,9 +27,10 @@ function markingRespond(int $status, array $body): never
 function createMarkingEvent(PDO $pdo, array $event): string
 {
     try {
-        $query = $pdo->prepare('INSERT INTO marking_usage_events (user_id, paper_id, paper_title, paper_course, paper_year, question_key, question_number, question_prompt, answer, max_marks, model, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\')');
+        $query = $pdo->prepare('INSERT INTO marking_usage_events (user_id, paper_id, paper_title, paper_course, paper_year, source_type, group_id, group_name, discussion_id, question_key, question_number, question_prompt, answer, max_marks, model, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\')');
         $query->execute([
             $event['userId'], $event['paperId'], $event['paperTitle'], $event['paperCourse'], $event['paperYear'],
+            $event['sourceType'], $event['groupId'], $event['groupName'], $event['discussionId'],
             $event['questionId'], $event['questionNumber'], $event['prompt'], $event['answer'], $event['maxMarks'],
             $event['model'],
         ]);
@@ -101,6 +102,18 @@ if (!is_array($data)) {
 $paperTitle = isset($data['paper']['title']) ? (string)$data['paper']['title'] : '';
 $paperCourse = isset($data['paper']['course']) ? (string)$data['paper']['course'] : '';
 $paperYear = isset($data['paper']['year']) ? (string)$data['paper']['year'] : '';
+$sourceType = ($data['sourceType'] ?? '') === 'group_discussion' ? 'group_discussion' : 'practice';
+$groupId = $sourceType === 'group_discussion' && isset($data['groupId']) && preg_match('/^[1-9][0-9]{0,18}$/', (string)$data['groupId']) ? (string)$data['groupId'] : null;
+$discussionId = $sourceType === 'group_discussion' && isset($data['discussionId']) && preg_match('/^[1-9][0-9]{0,18}$/', (string)$data['discussionId']) ? (string)$data['discussionId'] : null;
+$groupName = $sourceType === 'group_discussion' ? mb_substr(trim((string)($data['groupName'] ?? '')), 0, 200) : '';
+if ($sourceType === 'group_discussion') {
+    if ($groupId === null || $discussionId === null) markingRespond(422, ['error' => 'A valid group and discussion are required for group marking.']);
+    $groupQuery = $pdo->prepare('SELECT g.name FROM study_group_plans p JOIN study_groups g ON g.id = p.group_id WHERE p.id = ? AND p.group_id = ? AND p.created_by = ? LIMIT 1');
+    $groupQuery->execute([$discussionId, $groupId, (string)$user['id']]);
+    $group = $groupQuery->fetch(PDO::FETCH_ASSOC);
+    if (!$group) markingRespond(403, ['error' => 'Only the discussion creator can record group marking usage.']);
+    $groupName = (string)$group['name'];
+}
 $paperId = isset($data['paperId']) && is_scalar($data['paperId']) && trim((string)$data['paperId']) !== ''
     ? mb_substr(trim((string)$data['paperId']), 0, 160)
     : null;
@@ -155,6 +168,7 @@ foreach ($questions as $qIndex => $question) {
     $eventId = createMarkingEvent($pdo, [
         'userId' => (string)$user['id'], 'paperId' => $paperId,
         'paperTitle' => mb_substr($paperTitle, 0, 240), 'paperCourse' => mb_substr($paperCourse, 0, 160), 'paperYear' => mb_substr($paperYear, 0, 40),
+        'sourceType' => $sourceType, 'groupId' => $groupId, 'groupName' => $groupName, 'discussionId' => $discussionId,
         'questionId' => mb_substr($questionKey, 0, 512), 'questionNumber' => mb_substr($number, 0, 100),
         'prompt' => mb_substr($prompt, 0, 5000), 'answer' => $answer, 'maxMarks' => $maxMarks, 'model' => mb_substr($model, 0, 160),
     ]);

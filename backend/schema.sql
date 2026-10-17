@@ -236,6 +236,10 @@ CREATE TABLE IF NOT EXISTS marking_usage_events (
   paper_title VARCHAR(240) NOT NULL DEFAULT '',
   paper_course VARCHAR(160) NOT NULL DEFAULT '',
   paper_year VARCHAR(40) NOT NULL DEFAULT '',
+  source_type VARCHAR(32) NOT NULL DEFAULT 'practice',
+  group_id BIGINT UNSIGNED NULL,
+  group_name VARCHAR(200) NOT NULL DEFAULT '',
+  discussion_id BIGINT UNSIGNED NULL,
   question_key VARCHAR(512) NOT NULL,
   question_number VARCHAR(100) NOT NULL,
   question_prompt TEXT NOT NULL,
@@ -252,6 +256,7 @@ CREATE TABLE IF NOT EXISTS marking_usage_events (
   KEY marking_events_user_time (user_id, created_at),
   KEY marking_events_paper_question (paper_id, question_key, created_at),
   KEY marking_events_status_time (status, created_at),
+  KEY marking_events_source_group_time (source_type, group_id, created_at),
   CONSTRAINT marking_events_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 

@@ -230,7 +230,7 @@ export default function GroupDiscussionScreen({ group, session, profile, onBack,
     if (!usesBackend || markingId) return
     setMarkingId(questionMessage.id)
     try {
-      const results = await markGroupDiscussionAnswers({ token: session.token, plan, question: prompt, responses })
+      const results = await markGroupDiscussionAnswers({ token: session.token, plan, question: prompt, responses, group })
       await saveBackendDiscussionMarks(session.token, group.id, questionMessage.id, results)
       await refresh()
       showNotice('Marks and feedback have been shared with the group.')

@@ -101,7 +101,7 @@ function discussionItemText(item) {
   return (blocks.length ? blocks.join('\n') : item.text || '').trim()
 }
 
-export async function markGroupDiscussionAnswers({ token, plan, question, responses }) {
+export async function markGroupDiscussionAnswers({ token, plan, question, responses, group }) {
   if (!token) throw new Error('Your session has expired. Sign in again before marking answers.')
   if (!responses?.length) throw new Error('There are no group responses to mark yet.')
   const prompt = [
@@ -119,6 +119,10 @@ export async function markGroupDiscussionAnswers({ token, plan, question, respon
     body: JSON.stringify({
       paperId: plan.paperId == null ? null : String(plan.paperId),
       paper,
+      sourceType: 'group_discussion',
+      groupId: group?.id == null ? null : String(group.id),
+      groupName: group?.name || '',
+      discussionId: plan.id == null ? null : String(plan.id),
       questions: responses.map((entry) => ({
         id: String(entry.id),
         number: question.number || '',
