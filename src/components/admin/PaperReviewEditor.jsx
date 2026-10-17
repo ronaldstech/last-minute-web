@@ -55,6 +55,15 @@ function QuestionCard({ question, index, onChange, onRemove }) {
 function TableContentEditor({ block, onChange }) {
   const [rowsText, setRowsText] = useState(() => JSON.stringify(block.rows || [['', '']], null, 2))
   const [rowsError, setRowsError] = useState('')
+  const updateRowsText = (value) => {
+    setRowsText(value)
+    try {
+      const parsed = JSON.parse(value)
+      if (!Array.isArray(parsed) || parsed.some((row) => !Array.isArray(row))) return
+      onChange({ rows: parsed })
+      setRowsError('')
+    } catch { /* Keep editing until the JSON is complete. */ }
+  }
   const saveRows = () => {
     try {
       const parsed = JSON.parse(rowsText)
@@ -63,7 +72,7 @@ function TableContentEditor({ block, onChange }) {
       setRowsError('')
     } catch (error) { setRowsError(error.message || 'Check the table row format.') }
   }
-  return <div className="paper-content-block"><span>Table</span><input value={block.title || ''} placeholder="Table title (optional)" onChange={(event) => onChange({ title: event.target.value })}/><label>Column names<input value={(block.columns || []).join(', ')} placeholder="Column 1, Column 2" onChange={(event) => onChange({ columns: event.target.value.split(',').map((column) => column.trim()) })}/></label><label>Rows (JSON array)<textarea rows={4} value={rowsText} onChange={(event) => setRowsText(event.target.value)} onBlur={saveRows}/></label>{rowsError && <small className="paper-field-error">{rowsError}</small>}</div>
+  return <div className="paper-content-block"><span>Extracted table</span><input value={block.title || ''} placeholder="Table title (optional)" onChange={(event) => onChange({ title: event.target.value })}/><label>Column names<input value={(block.columns || []).join(', ')} placeholder="Column 1, Column 2" onChange={(event) => onChange({ columns: event.target.value.split(',').map((column) => column.trim()) })}/></label><div className="paper-table-preview" role="region" aria-label="Extracted table preview" tabIndex={0}><table><thead><tr>{(block.columns || []).map((column, index) => <th key={`${index}-${column}`}>{column || `Column ${index + 1}`}</th>)}</tr></thead><tbody>{(block.rows || []).map((row, rowIndex) => <tr key={rowIndex}>{(block.columns || []).map((_, columnIndex) => <td key={columnIndex}>{row[columnIndex] || ''}</td>)}</tr>)}</tbody></table>{!block.rows?.length && <small>This table has column headings but no data rows.</small>}</div><label>Rows (JSON array)<textarea rows={4} value={rowsText} onChange={(event) => updateRowsText(event.target.value)} onBlur={saveRows}/></label>{rowsError && <small className="paper-field-error">{rowsError}</small>}</div>
 }
 
 function ProgrammeAssignmentRow({ assignment, index, departmentId, departments, selectedProgrammeIds, session, onChange, onRemove }) {
