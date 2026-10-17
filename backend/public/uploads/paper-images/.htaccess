@@ -1,0 +1,8 @@
+<IfModule mod_autoindex.c>
+Options -Indexes
+</IfModule>
+<IfModule mod_authz_core.c>
+Require all granted
+</IfModule>
+RemoveHandler .php .phtml .php5
+Options -ExecCGI

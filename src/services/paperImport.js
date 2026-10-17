@@ -97,7 +97,8 @@ function parseTextIntoQuestions(text) {
 
   for (const line of lines) {
     const header = /^(?:question\s+|q\.?\s*)?(\d{1,3})\s*[).:\]]\s*(.*)$/i.exec(line)
-    if (header && Number(header[1]) > lastQuestionNumber) {
+    const dottedAddress = /^\d{1,3}(?:\.\d{1,3}){2,3}\b/.test(line)
+    if (header && !dottedAddress && Number(header[1]) === lastQuestionNumber + 1) {
       flushQuestion()
       lastQuestionNumber = Number(header[1])
       const { marks, text: title } = splitMarks(header[2])
@@ -105,7 +106,7 @@ function parseTextIntoQuestions(text) {
       continue
     }
     const sub = /^\(?([a-h]|\d{1,2})\)?[).:]\s*(.*)$/i.exec(line)
-    if (active && sub) {
+    if (active && sub && !dottedAddress) {
       flushSub()
       activeSub = { number: sub[1].toLowerCase(), text: [sub[2]] }
     } else if (activeSub) activeSub.text.push(line)
@@ -207,163 +208,49 @@ async function importDocx(file) {
   return textImportPaper(lines.join('\n'), file.name)
 }
 
-function bytesToBinary(bytes) {
-  let result = ''
-  const chunkSize = 0x8000
-  for (let index = 0; index < bytes.length; index += chunkSize) result += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
-  return result
-}
-
-async function pdfStreams(bytes) {
-  const binary = bytesToBinary(bytes)
-  const streams = []
-  let searchAt = 0
-  while (true) {
-    const streamAt = binary.indexOf('stream', searchAt)
-    if (streamAt < 0) break
-    const dictionaryStart = binary.lastIndexOf('<<', streamAt)
-    const dictionary = dictionaryStart >= 0 && streamAt - dictionaryStart < 4096 ? binary.slice(dictionaryStart, streamAt) : ''
-    let dataStart = streamAt + 6
-    if (binary[dataStart] === '\r' && binary[dataStart + 1] === '\n') dataStart += 2
-    else if (binary[dataStart] === '\n' || binary[dataStart] === '\r') dataStart++
-    const length = /\/Length\s+(\d+)\b/.exec(dictionary)
-    const endAt = length ? dataStart + Number(length[1]) : binary.indexOf('endstream', dataStart)
-    if (endAt < dataStart || endAt < 0 || endAt > binary.length) { searchAt = streamAt + 6; continue }
-    const raw = bytes.subarray(dataStart, endAt)
-    let decoded = raw
-    if (/\/FlateDecode\b/.test(dictionary)) {
-      try { decoded = await inflate(raw, 'deflate') } catch {
-        try { decoded = await inflate(raw, 'deflate-raw') } catch { searchAt = endAt + 9; continue }
-      }
-    }
-    const text = bytesToBinary(decoded)
-    if (/\/Subtype\s*\/Image/.test(dictionary)) { searchAt = endAt + 9; continue }
-    if ((text.includes('BT') && /\bT[Jj]\b/.test(text)) || text.includes('begincmap')) streams.push(text)
-    searchAt = endAt + 9
-  }
-  return streams
-}
-
-function decodePdfLiteral(value, characterMap = new Map()) {
-  const output = []
-  for (let index = 1; index < value.length - 1; index++) {
-    const char = value[index]
-    if (char !== '\\') { output.push(char); continue }
-    const next = value[++index]
-    if (next === 'n') output.push('\n')
-    else if (next === 'r') output.push('\r')
-    else if (next === 't') output.push('\t')
-    else if (next === 'b') output.push('\b')
-    else if (next === 'f') output.push('\f')
-    else if (next === '\r' || next === '\n') { if (next === '\r' && value[index + 1] === '\n') index++ }
-    else if (/[0-7]/.test(next || '')) {
-      let octal = next
-      for (let count = 0; count < 2 && /[0-7]/.test(value[index + 1] || ''); count++) octal += value[++index]
-      output.push(String.fromCharCode(parseInt(octal, 8)))
-    } else output.push(next || '')
-  }
-  return decodePdfCodes(output.join(''), characterMap)
-}
-
-function decodePdfHex(value, characterMap = new Map()) {
-  let hex = value.slice(1, -1).replace(/\s/g, '')
-  if (hex.length % 2) hex += '0'
-  const bytes = Uint8Array.from(hex.match(/../g) || [], (pair) => parseInt(pair, 16))
-  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes.subarray(2))
-  return decodePdfCodes(bytesToBinary(bytes), characterMap)
-}
-
-function unicodeFromHex(hex) {
-  let normalized = hex.replace(/\s/g, '')
-  if (normalized.length % 4) normalized = normalized.padStart(Math.ceil(normalized.length / 4) * 4, '0')
-  const bytes = Uint8Array.from(normalized.match(/../g) || [], (pair) => parseInt(pair, 16))
-  return new TextDecoder('utf-16be').decode(bytes)
-}
-
-function decodePdfCodes(value, characterMap) {
-  if (!characterMap.size) return new TextDecoder('windows-1252').decode(Uint8Array.from(value, (character) => character.charCodeAt(0) & 255))
-  const lengths = [...new Set([...characterMap.keys()].map((key) => key.length))].sort((a, b) => b - a)
-  let output = ''
-  for (let index = 0; index < value.length;) {
-    let mapped
-    let consumed = 0
-    for (const length of lengths) {
-      const byteLength = Math.ceil(length / 2)
-      const source = Array.from(value.slice(index, index + byteLength), (character) => character.charCodeAt(0).toString(16).padStart(2, '0')).join('').toUpperCase()
-      if (characterMap.has(source)) { mapped = characterMap.get(source); consumed = byteLength; break }
-    }
-    if (consumed) { output += mapped; index += consumed }
-    else {
-      output += new TextDecoder('windows-1252').decode(Uint8Array.of(value.charCodeAt(index) & 255))
-      index++
-    }
-  }
-  return output
-}
-
-function parsePdfCharacterMap(streams) {
-  const characterMap = new Map()
-  for (const stream of streams.filter((item) => item.includes('begincmap'))) {
-    for (const section of stream.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
-      for (const pair of section[1].matchAll(/<([\da-f]+)>\s*<([\da-f]+)>/gi)) characterMap.set(pair[1].toUpperCase(), unicodeFromHex(pair[2]))
-    }
-    for (const section of stream.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
-      const ranges = /<([\da-f]+)>\s*<([\da-f]+)>\s*(<([\da-f]+)>|\[([^\]]*)\])/gi
-      for (const range of section[1].matchAll(ranges)) {
-        const start = parseInt(range[1], 16)
-        const end = parseInt(range[2], 16)
-        const width = range[1].length
-        if (end - start > 4096) continue
-        if (range[5] !== undefined) {
-          const targets = [...range[5].matchAll(/<([\da-f]+)>/gi)].map((item) => item[1])
-          for (let offset = 0; offset <= end - start && offset < targets.length; offset++) characterMap.set((start + offset).toString(16).padStart(width, '0').toUpperCase(), unicodeFromHex(targets[offset]))
-        } else {
-          const destination = parseInt(range[4], 16)
-          for (let code = start; code <= end; code++) characterMap.set(code.toString(16).padStart(width, '0').toUpperCase(), unicodeFromHex((destination + code - start).toString(16).padStart(range[4].length, '0')))
-        }
-      }
-    }
-  }
-  return characterMap
-}
-
-function pdfStringsInArray(array, characterMap) {
-  const items = array.match(/\((?:\\.|[^\\)])*\)|<[\da-f\s]*>/gi) || []
-  return items.map((item) => item.startsWith('(') ? decodePdfLiteral(item, characterMap) : decodePdfHex(item, characterMap)).join('')
-}
-
-function extractPdfText(stream, characterMap) {
-  const pages = []
-  for (const textObject of stream.matchAll(/BT([\s\S]*?)ET/g)) {
-    const body = textObject[1]
-    let line = ''
-    const operations = /\[((?:[^\]\\]|\\.)*)\]\s*TJ|(<[\da-f\s]*>|\((?:\\.|[^\\)])*\))\s*Tj|\((?:\\.|[^\\)])*\)\s*['"]/gi
-    for (const operation of body.matchAll(operations)) {
-      const token = operation[1] !== undefined ? `[${operation[1]}]` : operation[2] || operation[0].trim().slice(0, -1).trim()
-      line += token.startsWith('[') ? pdfStringsInArray(token, characterMap) : token.startsWith('<') ? decodePdfHex(token, characterMap) : decodePdfLiteral(token, characterMap)
-    }
-    const cleanLine = line.split('').filter((character) => {
-      const code = character.charCodeAt(0)
-      return code >= 32 || code === 9 || code === 10 || code === 13
-    }).join('').trim()
-    if (cleanLine) pages.push(cleanLine)
-  }
-  return pages
-}
-
 async function importPdf(file) {
   if (file.size > PDF_LIMIT) throw new Error('PDF is larger than 35 MB. Split it into smaller files and import them separately.')
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const signature = new TextDecoder().decode(bytes.subarray(0, 5))
-  if (!signature.startsWith('%PDF-')) throw new Error('This file is not a valid PDF.')
-  const streams = await pdfStreams(bytes)
-  const characterMap = parsePdfCharacterMap(streams)
-  const pages = streams.filter((stream) => stream.includes('BT')).flatMap((stream) => extractPdfText(stream, characterMap)).filter(Boolean)
-  const text = pages.join('\n')
-  if (!text.trim()) throw new Error('No selectable text was found. This PDF may be scanned; use a text-based PDF, Word document, or JSON import.')
-  return textImportPaper(text, file.name)
+  const [pdfjsLib, worker] = await Promise.all([
+    import('pdfjs-dist/legacy/build/pdf.mjs'),
+    import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
+  ])
+  pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), useSystemFonts: true })
+  let document
+  try {
+    document = await loadingTask.promise
+    const pages = []
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+      const page = await document.getPage(pageNumber)
+      const content = await page.getTextContent()
+      const lines = []
+      let line = ''
+      let previousY = null
+      const flushLine = () => {
+        const value = line.replace(/\uFFFD/g, ' ').replace(/\u01AF/g, 'ff').replace(/\s+/g, ' ').trim()
+        if (value) lines.push(value)
+        line = ''
+      }
+      for (const item of content.items) {
+        if (!('str' in item) || typeof item.str !== 'string') continue
+        const y = item.transform?.[5]
+        if (previousY !== null && Number.isFinite(y) && Math.abs(y - previousY) > 1) flushLine()
+        line += item.str
+        previousY = y
+        if (item.hasEOL) flushLine()
+      }
+      flushLine()
+      pages.push(lines.join('\n'))
+      page.cleanup()
+    }
+    return textImportPaper(pages.join('\n'), file.name)
+  } catch (error) {
+    if (error instanceof Error && error.message) throw error
+    throw new Error('Could not read text from this PDF. Try exporting it as a searchable PDF or importing a Word document.')
+  } finally {
+    await loadingTask.destroy()
+  }
 }
-
 export async function importPaperFile(file) {
   if (!file) throw new Error('Choose a file to import.')
   const extension = fileExtension(file.name)
