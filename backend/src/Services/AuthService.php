@@ -29,7 +29,7 @@ final class AuthService
         $nameLength = preg_match_all('/./us', $name);
         if ($name === '' || $nameLength === false || $nameLength > 120) throw new ApiException('Enter your name (up to 120 characters).', 422);
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) throw new ApiException('Enter a valid email address.', 422);
-        if (!preg_match('/^(?:\+?265)?0?9\d{8}$/', $phone)) throw new ApiException('Enter a valid Malawi mobile number.', 422);
+        if (!preg_match('/^(?:\+?265)?0?(?:99|98|88|89)\d{7}$/', $phone)) throw new ApiException('Enter a valid Malawi mobile number.', 422);
         $phone = $this->normalizeMalawiPhone($phone);
         if (strlen($password) < 8 || strlen($password) > 4096) throw new ApiException('Choose a password with at least 8 characters.', 422);
         if ($this->users->emailOrPhoneExists($email, $phone)) throw new ApiException('An account already exists for that email or phone number.', 409);

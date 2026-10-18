@@ -3,7 +3,7 @@ import Icon from '../components/Icon.jsx'
 import { createAccount, sendPasswordReset, signInWithEmail } from '../services/authApi.js'
 import './AuthScreen.css'
 
-const phonePattern = /^(?:\+?265)?(?:0)?9\d{8}$/
+const phonePattern = /^(?:\+?265)?0?(?:99|98|88|89)\d{7}$/
 
 function AuthBrand() {
   return <a className="auth-brand" href="#signin"><img src="/logo.png" alt="" /><span><strong>Last Minute</strong><small>EXAM PAPER LIBRARY</small></span></a>
@@ -24,7 +24,7 @@ export default function AuthScreen({ onAuthenticated, showNotice }) {
     event.preventDefault()
     setError('')
     if (isSignup && !phonePattern.test(phone.replace(/[\s-]/g, ''))) {
-      setError('Enter a valid 10-digit Malawi mobile number.')
+      setError('Enter a valid Malawi mobile number starting with 099, 99, 098, 98, 088, 88, 089, or 89.')
       return
     }
     setBusy(true)
