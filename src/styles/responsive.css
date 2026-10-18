@@ -75,6 +75,8 @@ footer { font-size: 11px; }
 .transaction-status.paid { color: #25865e; background: #e7f5ed; }
 .transaction-status.failed { color: #b74a43; background: #fff0ef; }
 .transaction-date { color: #969aaa; font-size: 9px; white-space: nowrap; }
+.transaction-verify { border: 1px solid #dedaff; border-radius: 8px; padding: 7px 10px; background: #f5f3ff; color: #6256ce; font: inherit; font-size: 10px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.transaction-verify:disabled { border-color: #e9ebf1; background: #f7f8fa; color: #9297a8; cursor: default; }
 .transaction-empty { min-height: 180px; }
 .transaction-error { padding: 12px; border: 1px solid #f0d4d2; border-radius: 10px; color: #a44b45; font-size: 11px; }
 .transaction-error button { margin-left: 12px; border: 0; background: transparent; color: #6256ce; font-weight: 700; }
@@ -247,6 +249,7 @@ footer { font-size: 11px; }
   .transaction-info small { font-size: 10px; }
   .transaction-date { grid-column: 2; font-size: 10px; }
   .transaction-status { grid-column: 3; grid-row: 2; justify-self: end; font-size: 10px; }
+  .transaction-verify { grid-column: 3; grid-row: 3; justify-self: end; }
 }
 
 @media (max-width: 390px) {

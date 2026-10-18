@@ -35,6 +35,7 @@ export default function CoinsScreen({ profile, balance, freeBalance, session, on
   const [checkoutStep, setCheckoutStep] = useState('details')
   const [chargeId, setChargeId] = useState('')
   const [txRef, setTxRef] = useState('')
+  const [verifyingChargeId, setVerifyingChargeId] = useState('')
 
   const refresh = useCallback(() => {
     setLoading(true)
@@ -170,6 +171,39 @@ export default function CoinsScreen({ profile, balance, freeBalance, session, on
     }
   }
 
+  const verifyActivityTransaction = async (transaction) => {
+    const id = transaction.chargeId || transaction.id
+    if (!id || verifyingChargeId) return
+    setVerifyingChargeId(id)
+    setError('')
+    let verificationMessage = ''
+    try {
+      if (usesBackend) {
+        const result = await verifyWalletTransaction(session.token, id)
+        if (result.user) onProfileChange((current) => ({ ...current, ...result.user }))
+        setTransactions(result.transactions || [])
+        if (result.status === 'paid') showNotice('Payment confirmed. Your coins are now in your wallet.')
+        else verificationMessage = result.message || 'Payment is still pending. Try verification again in a moment.'
+      } else {
+        const result = await verifyPayment(transaction.txRef || id)
+        if (result.status === 'paid') {
+          await patchDocument(session.idToken, `transactions/${id}`, { status: 'paid', txRef: transaction.txRef || id, updatedAt: new Date() })
+          await creditCoinsOnce(session.idToken, session.userId, id, Number(transaction.coins || 0))
+          showNotice('Payment confirmed. Your coins are now in your wallet.')
+        } else {
+          if (result.status === 'failed') await patchDocument(session.idToken, `transactions/${id}`, { status: 'failed', failureReason: result.message, updatedAt: new Date() })
+          verificationMessage = result.message || 'Payment is still pending. Try verification again in a moment.'
+        }
+      }
+      await refresh()
+      if (verificationMessage) setError(verificationMessage)
+    } catch (verifyError) {
+      setError(verifyError.message || 'Could not verify this payment.')
+    } finally {
+      setVerifyingChargeId('')
+    }
+  }
+
   const openCheckout = async (pack) => {
     setCheckoutPack(pack)
     setCheckoutStep('details')
@@ -196,7 +230,7 @@ export default function CoinsScreen({ profile, balance, freeBalance, session, on
     {checkoutPack && <div className="checkout-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !checkoutBusy) setCheckoutPack(null) }}><section className="checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title"><button className="checkout-close" aria-label="Close checkout" disabled={checkoutBusy} onClick={() => setCheckoutPack(null)}>×</button><span className="section-kicker">SECURE MOBILE MONEY</span><h2 id="checkout-title">{checkoutStep === 'verify' ? 'Complete your payment' : 'Buy coins'}</h2><p>{checkoutStep === 'verify' ? `Approve the request on your phone, then verify to add ${(checkoutPack.coins + checkoutPack.bonus).toLocaleString()} coins.` : `You’re buying ${(checkoutPack.coins + checkoutPack.bonus).toLocaleString()} coins for MWK ${(checkoutPack.coins + checkoutPack.bonus).toLocaleString()}.`}</p>{checkoutStep === 'details' ? <form onSubmit={startCheckout} className="checkout-form"><label>Mobile money operator<select value={operatorId} onChange={(event) => setOperatorId(event.target.value)} disabled={checkoutBusy || !operators.length}><option value="">{checkoutBusy && !operators.length ? 'Loading operators…' : 'Select operator'}</option>{operators.map((operator) => <option key={operator.id} value={operator.id}>{operator.name}</option>)}</select></label><label>Phone number<input type="tel" autoComplete="tel" value={mobile} onChange={(event) => setMobile(event.target.value)} placeholder="0990 944 406" required /></label><button className="primary-button" disabled={checkoutBusy || !operators.length}>{checkoutBusy ? 'Starting payment…' : 'Continue to payment'}</button></form> : <button className="primary-button checkout-verify" onClick={checkPayment} disabled={checkoutBusy}>{checkoutBusy ? 'Checking payment…' : 'I approved it · Verify payment'}</button>}{checkoutError && <div className="notification-error checkout-error">{checkoutError}</div>}<small className="checkout-footnote">Payment is confirmed by the payment service before coins are credited to your account.</small></section></div>}
     <section className="transaction-section"><div className="groups-subhead"><div><span className="section-kicker">WALLET · ACTIVITY</span><h2>Recent activity</h2></div><button className="notification-refresh" onClick={refresh} disabled={loading}><Icon name="clock" size={15} /> Refresh</button></div>
       {error && <div className="notification-error transaction-error">{error}<button onClick={refresh}>Retry</button></div>}
-      {loading ? <div className="content-loader"><span className="notification-spinner"/> Loading your transactions…</div> : transactions.length ? <div className="transaction-list">{transactions.slice(0, 12).map((transaction) => <article className="transaction-row" key={transaction.id || transaction.chargeId}><span className="transaction-icon"><Icon name="coins" size={17} /></span><span className="transaction-info"><strong>{Number(transaction.coins || 0).toLocaleString()} coins</strong><small>{transaction.operatorName || 'Mobile money'} · {transaction.mobile || transaction.chargeId}</small></span><span className={`transaction-status ${transactionLabel(transaction.status).toLowerCase()}`}>{transactionLabel(transaction.status)}</span><span className="transaction-date">{transactionDate(transaction.createdAt)}</span></article>)}</div> : <div className="empty-panel transaction-empty"><span className="empty-icon"><Icon name="coins" size={22} /></span><h3>No coin transactions yet</h3><p>Your payment and top-up history will show here.</p></div>}
+      {loading ? <div className="content-loader"><span className="notification-spinner"/> Loading your transactions…</div> : transactions.length ? <div className="transaction-list">{transactions.slice(0, 12).map((transaction) => { const id = transaction.id || transaction.chargeId; const paid = ['paid', 'success', 'successful', 'completed'].includes(String(transaction.status).toLowerCase()); return <article className="transaction-row" key={id}><span className="transaction-icon"><Icon name="coins" size={17} /></span><span className="transaction-info"><strong>{Number(transaction.coins || 0).toLocaleString()} coins</strong><small>{transaction.operatorName || 'Mobile money'} · {transaction.mobile || id}</small></span><span className={`transaction-status ${transactionLabel(transaction.status).toLowerCase()}`}>{transactionLabel(transaction.status)}</span><span className="transaction-date">{transactionDate(transaction.createdAt)}</span><button type="button" className="transaction-verify" disabled={paid || Boolean(verifyingChargeId)} onClick={() => verifyActivityTransaction(transaction)}>{paid ? 'Verified' : verifyingChargeId === id ? 'Verifying…' : 'Verify'}</button></article> })}</div> : <div className="empty-panel transaction-empty"><span className="empty-icon"><Icon name="coins" size={22} /></span><h3>No coin transactions yet</h3><p>Your payment and top-up history will show here.</p></div>}
     </section>
     <div className="info-callout"><Icon name="lock" size={17} /><span><strong>Paper access lasts 24 hours.</strong> Unlocking a paper costs 20 coins.</span></div>
   </>
