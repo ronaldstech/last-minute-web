@@ -25,3 +25,4 @@
 @media(prefers-reduced-motion:reduce){.discussion-new-message-live,.discussion-new-message-live i{animation:none}}
 
 
+.discussion-ended-notice{display:flex;align-items:center;gap:10px;width:min(100%,1100px);box-sizing:border-box;margin:0 auto 12px;padding:11px 14px;border:1px solid #e8d6d6;border-radius:11px;background:#fff8f8;color:#ad454b}.discussion-ended-notice>span{display:grid;gap:2px}.discussion-ended-notice strong{font-size:12px}.discussion-ended-notice small{color:#8c7274;font-size:10px}
