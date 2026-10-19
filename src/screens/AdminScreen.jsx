@@ -93,6 +93,7 @@ function paperQuestionForFirestore(question, index) {
     number: String(item.number ?? String.fromCharCode(97 + subIndex)),
     text: String(item.text || ''),
     marks: item.marks === '' || item.marks === undefined || item.marks === null ? null : Number(item.marks),
+    content: Array.isArray(item.content) ? item.content.map(paperContentForFirestore) : [],
     images: normalizeImages(item.images),
     subquestions: Array.isArray(item.subquestions) ? item.subquestions.map(normalizeSubquestion) : [],
   })

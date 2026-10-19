@@ -27,6 +27,27 @@ function ImageAttachments({ images = [], session, onChange, compact = false }) {
   return <div className={`paper-image-attachments${compact ? ' is-compact' : ''}`}><label className="paper-image-upload"><Icon name="image" size={14}/>{uploading ? `Uploading ${uploadProgress}%` : 'Add image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={(event) => { void upload(event.target.files?.[0]); event.target.value = '' }}/></label>{images.length > 0 && <button type="button" className="paper-image-count" aria-expanded={showImages} onClick={() => setShowImages((shown) => !shown)}>{images.length} attached</button>}{images.length > 0 && showImages && <div className="paper-image-preview-list">{images.map((image, index) => { const url = typeof image === 'string' ? image : image.url || image.path; return <figure key={`${url}-${index}`}><img src={url} alt={image.name || image.caption || 'Question attachment'}/><button type="button" onClick={() => onChange(images.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remove attached image">Remove</button></figure> })}</div>}{error && <small role="alert">{error}</small>}</div>
 }
 
+function ContentBlocksEditor({ content = [], onChange }) {
+  const updateBlock = (index, changes) => onChange(content.map((block, current) => current === index ? { ...block, ...changes } : block))
+  const addBlock = (type) => {
+    const block = type === 'table' ? { type, title: '', columns: ['Column 1', 'Column 2'], rows: [['', '']] }
+      : type === 'bullet_list' ? { type, ordered: false, items: [''] }
+        : type === 'code' ? { type, language: '', code: '' }
+          : type === 'image' ? { type, path: '', caption: '' }
+            : { type: 'paragraph', text: '' }
+    onChange([...content, block])
+  }
+  return <div className="paper-question-content"><div className="paper-editor-label">Content blocks</div>{content.map((block, index) => {
+    const remove = () => onChange(content.filter((_, current) => current !== index))
+    if (block.type === 'table') return <TableContentEditor key={index} block={block} onChange={(changes) => updateBlock(index, changes)}/>
+    if (block.type === 'paragraph') return <label className="paper-content-block" key={index}><span>Paragraph</span><textarea rows={3} value={block.text || ''} onChange={(event) => updateBlock(index, { text: event.target.value })}/><button type="button" className="paper-remove-block" onClick={remove}>Remove block</button></label>
+    if (block.type === 'code') return <label className="paper-content-block" key={index}><span>Code {block.language ? `· ${block.language}` : ''}</span><textarea rows={4} value={block.code || ''} onChange={(event) => updateBlock(index, { code: event.target.value })}/></label>
+    if (block.type === 'image') return <div className="paper-content-block" key={index}><span>Image reference</span><input value={block.path || ''} placeholder="Image URL or storage path" onChange={(event) => updateBlock(index, { path: event.target.value })}/><input value={block.caption || ''} placeholder="Caption (optional)" onChange={(event) => updateBlock(index, { caption: event.target.value })}/></div>
+    if (block.type === 'bullet_list') return <label className="paper-content-block" key={index}><span>{block.ordered ? 'Numbered list' : 'Bullet list'} · one item per line</span><textarea rows={3} value={(block.items || []).join('\n')} onChange={(event) => updateBlock(index, { items: event.target.value.split('\n') })}/><label className="paper-inline-check"><input type="checkbox" checked={Boolean(block.ordered)} onChange={(event) => updateBlock(index, { ordered: event.target.checked })}/> Number this list</label></label>
+    return <details className="paper-preserved-block" key={index}><summary>{block.type || 'Additional'} content · preserved</summary><pre>{JSON.stringify(block, null, 2)}</pre></details>
+  })}<label className="paper-add-content"><Icon name="plus" size={14}/><span>Add content block</span><select value="" onChange={(event) => event.target.value && addBlock(event.target.value)}><option value="" disabled>Choose a block type…</option><option value="paragraph">Paragraph</option><option value="table">Table</option><option value="bullet_list">List</option><option value="code">Code</option><option value="image">Image reference</option></select></label></div>
+}
+
 function SubquestionsEditor({ items = [], onChange, depth = 0, session }) {
   const update = (index, changes) => onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, ...changes } : item))
   return <div className="paper-subquestions" style={{ '--depth': depth }}>
@@ -37,10 +58,11 @@ function SubquestionsEditor({ items = [], onChange, depth = 0, session }) {
         <input aria-label="Sub-question marks" type="number" min="0" value={item.marks ?? ''} placeholder="Marks" onChange={(event) => update(index, { marks: event.target.value === '' ? null : Number(event.target.value) })}/>
         <button type="button" className="paper-icon-button" aria-label="Remove sub-question" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15}/></button>
       </div>
+      <ContentBlocksEditor content={item.content || []} onChange={(content) => update(index, { content })}/>
       <div className="paper-subquestion-attachment-row"><ImageAttachments images={item.images || []} session={session} compact onChange={(images) => update(index, { images })}/></div>
       <SubquestionsEditor items={item.subquestions || []} depth={depth + 1} session={session} onChange={(subquestions) => update(index, { subquestions })}/>
     </div>)}
-    <button type="button" className="paper-add-sub" onClick={() => onChange([...items, { id: `sq-${crypto.randomUUID()}`, number: String.fromCharCode(97 + items.length), text: '', marks: null, subquestions: [] }])}><Icon name="plus" size={14}/> Add {depth ? 'nested ' : ''}sub-question</button>
+    <button type="button" className="paper-add-sub" onClick={() => onChange([...items, { id: `sq-${crypto.randomUUID()}`, number: String.fromCharCode(97 + items.length), text: '', marks: null, content: [], subquestions: [] }])}><Icon name="plus" size={14}/> Add {depth ? 'nested ' : ''}sub-question</button>
   </div>
 }
 
