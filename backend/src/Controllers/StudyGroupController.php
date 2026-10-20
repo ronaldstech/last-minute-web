@@ -43,10 +43,36 @@ final class StudyGroupController
         $user = $this->authenticate->user($request);
         $input = $request->json();
         $groupId = $this->id((string)($input['groupId'] ?? ''), 'group');
-        $email = mb_strtolower(trim((string)($input['email'] ?? '')));
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new ApiException('Enter a valid email address.', 422);
-        $this->domain(fn() => $this->groups->invite((string)$user['id'], $groupId, $email));
+        $username = trim((string)($input['username'] ?? ''));
+        if ($username === '' || mb_strlen($username) > 120) throw new ApiException('Enter a username.', 422);
+        $this->domain(fn() => $this->groups->inviteByUsername((string)$user['id'], $groupId, $username));
         return ['data' => ['message' => 'Group invitation sent.']];
+    }
+
+    public function searchUsers(Request $request): array
+    {
+        $user = $this->authenticate->user($request);
+        $query = trim((string)$request->query('q'));
+        if (mb_strlen($query) < 2) return ['data' => ['users' => []]];
+        return ['data' => ['users' => $this->groups->searchUsers((string)$user['id'], $query)]];
+    }
+
+    public function createInviteLink(Request $request): array
+    {
+        $user = $this->authenticate->user($request);
+        $input = $request->json();
+        $groupId = $this->id((string)($input['groupId'] ?? ''), 'group');
+        return ['data' => ['token' => $this->domain(fn() => $this->groups->createInviteLink((string)$user['id'], $groupId))]];
+    }
+
+    public function joinByLink(Request $request): array
+    {
+        $user = $this->authenticate->user($request);
+        $input = $request->json();
+        $token = trim((string)($input['token'] ?? ''));
+        if (!preg_match('/^[a-f0-9]{64}$/', $token)) throw new ApiException('This invitation link is invalid.', 422);
+        $group = $this->domain(fn() => $this->groups->joinByLink((string)$user['id'], $token));
+        return ['data' => ['group' => $group]];
     }
 
     public function respond(Request $request): array

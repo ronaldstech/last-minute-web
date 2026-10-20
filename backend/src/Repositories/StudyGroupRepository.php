@@ -81,19 +81,54 @@ final class StudyGroupRepository
         }
     }
 
-    public function invite(string $userId, string $groupId, string $email): void
+    public function searchUsers(string $userId, string $query): array
+    {
+        $statement = $this->pdo->prepare('SELECT id, username FROM users WHERE id <> ? AND username LIKE ? ORDER BY username LIMIT 8');
+        $statement->execute([$userId, '%' . $query . '%']);
+        return array_map(static fn(array $row): array => ['id' => (string)$row['id'], 'username' => $row['username']], $statement->fetchAll());
+    }
+
+    public function inviteByUsername(string $userId, string $groupId, string $username): void
     {
         $this->requireOwner($groupId, $userId);
-        $lookup = $this->pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
-        $lookup->execute([mb_strtolower($email)]);
+        $lookup = $this->pdo->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+        $lookup->execute([$username]);
         $inviteeId = $lookup->fetchColumn();
-        if ($inviteeId === false) throw new \DomainException('No account was found for that email address.');
+        if ($inviteeId === false) throw new \DomainException('No account was found for that username.');
+        $this->createInvitation($userId, $groupId, (string)$inviteeId);
+    }
+
+    private function createInvitation(string $userId, string $groupId, string $inviteeId): void
+    {
         if ((string)$inviteeId === $userId) throw new \DomainException('You are already the owner of this group.');
         $member = $this->pdo->prepare('SELECT 1 FROM study_group_members WHERE group_id = ? AND user_id = ?');
         $member->execute([$groupId, $inviteeId]);
         if ($member->fetchColumn()) throw new \DomainException('That student is already a member of this group.');
         $statement = $this->pdo->prepare("INSERT INTO study_group_invitations (group_id, invitee_id, inviter_id, status) VALUES (?, ?, ?, 'pending') ON DUPLICATE KEY UPDATE inviter_id = VALUES(inviter_id), status = 'pending', responded_at = NULL, created_at = CURRENT_TIMESTAMP");
         $statement->execute([$groupId, $inviteeId, $userId]);
+    }
+
+    public function createInviteLink(string $userId, string $groupId): string
+    {
+        $this->requireOwner($groupId, $userId);
+        $token = bin2hex(random_bytes(32));
+        $statement = $this->pdo->prepare('INSERT INTO study_group_invite_links (group_id, token_hash, created_by) VALUES (?, ?, ?)');
+        $statement->execute([$groupId, hash('sha256', $token), $userId]);
+        return $token;
+    }
+
+    public function joinByLink(string $userId, string $token): array
+    {
+        $statement = $this->pdo->prepare('SELECT l.group_id, g.name, g.course, g.description, g.owner_id AS ownerId, u.username AS ownerName FROM study_group_invite_links l JOIN study_groups g ON g.id = l.group_id JOIN users u ON u.id = g.owner_id WHERE l.token_hash = ? LIMIT 1');
+        $statement->execute([hash('sha256', $token)]);
+        $group = $statement->fetch();
+        if (!$group) throw new \DomainException('This invitation link is invalid or has expired.');
+        $join = $this->pdo->prepare('INSERT IGNORE INTO study_group_members (group_id, user_id) VALUES (?, ?)');
+        $join->execute([$group['group_id'], $userId]);
+        $group['id'] = (string)$group['group_id'];
+        $group['ownerId'] = (string)$group['ownerId'];
+        unset($group['group_id']);
+        return $group;
     }
 
     public function messages(string $userId, string $groupId, string $beforeId = ''): array

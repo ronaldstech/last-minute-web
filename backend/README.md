@@ -66,7 +66,10 @@ Errors use `{ "message": "..." }` JSON.
 | `POST` | `/backend/public/wallet/transactions/verify` | Bearer token | Verify `{ "chargeId" }` with the payment service and credit the authenticated user's MySQL balance once after payment succeeds. |
 | `GET` / `POST` | `/backend/public/groups` | Bearer token | List the current user's groups or create `{ "name", "course", "description" }`; the creator becomes the first member. |
 | `GET` | `/backend/public/groups/invitations` | Bearer token | List pending invitations for the current account. |
-| `POST` | `/backend/public/groups/invitations` | Group owner bearer token | Invite an existing account with `{ "groupId", "email" }`. |
+| `POST` | `/backend/public/groups/invitations` | Group owner bearer token | Invite an existing account by username with `{ "groupId", "username" }`. |
+| `GET` | `/backend/public/groups/users?q=...` | Bearer token | Find up to eight accounts by username prefix/substring. |
+| `POST` | `/backend/public/groups/invite-link` | Group owner bearer token | Create a shareable link token with `{ "groupId" }`. |
+| `POST` | `/backend/public/groups/invite-link/join` | Bearer token | Join the group from a share link with `{ "token" }`. |
 | `POST` | `/backend/public/groups/invitations/respond` | Invited user's bearer token | Accept or decline with `{ "invitationId", "accept" }`. Accepting also adds group membership. |
 | `GET` / `POST` | `/backend/public/groups/messages?groupId={id}` | Group member bearer token | Read paged discussion messages or post `{ "text" }`. Older-page requests include `before={messageId}`. |
 | `GET` / `POST` | `/backend/public/groups/plans?groupId={id}` | Group member / owner bearer token | List scheduled discussions or create one with `{ "paperId", "scheduledAt" }`. Scheduling is owner-only. Each answerable leaf prompt becomes one ordered step; parent instructions are retained as context without being copied into the child prompt. |

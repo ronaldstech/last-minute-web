@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import ScreenHeader from '../components/ScreenHeader.jsx'
 import { createStudyGroup, listMyGroups, listMyInvitations, respondToInvitation } from '../services/studyRepository.js'
-import { createBackendGroup, inviteToBackendGroup, loadGroupInvitations, loadGroups, respondToBackendInvitation } from '../services/groupsApi.js'
+import { createBackendGroup, createGroupInviteLink, inviteToBackendGroup, joinGroupByLink, loadGroupInvitations, loadGroups, respondToBackendInvitation, searchGroupUsers } from '../services/groupsApi.js'
 import GroupDiscussionScreen from './GroupDiscussionScreen.jsx'
 import './GroupsScreen.css'
 
@@ -22,12 +22,40 @@ export default function GroupsScreen({ session, profile, showNotice }) {
   const [saving, setSaving] = useState(false)
   const [respondingId, setRespondingId] = useState('')
   const [inviteGroupId, setInviteGroupId] = useState('')
-  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteUsername, setInviteUsername] = useState('')
+  const [usernameResults, setUsernameResults] = useState([])
+  const [inviteLinkBusy, setInviteLinkBusy] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [form, setForm] = useState({ name: '', course: '', description: '' })
   const [activeGroup, setActiveGroup] = useState(() => readActiveGroup(session.userId))
   const userId = session.userId
   const usesBackend = session?.authProvider === 'php-mysql'
+
+  useEffect(() => {
+    const inviteToken = new URLSearchParams(window.location.search).get('groupInvite')
+    if (!inviteToken || !usesBackend) return
+    let active = true
+    joinGroupByLink(session.token, inviteToken).then((group) => {
+      if (!active) return
+      window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`)
+      setActiveGroup(group)
+      showNotice(`You joined ${group.name}.`)
+    }).catch((joinError) => {
+      if (!active) return
+      window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`)
+      showNotice(joinError.message || 'Could not use this group invitation link.')
+    })
+    return () => { active = false }
+  }, [session.token, showNotice, usesBackend])
+
+  useEffect(() => {
+    if (!inviteGroupId || inviteUsername.trim().length < 2) { setUsernameResults([]); return }
+    let active = true
+    const timeout = window.setTimeout(() => searchGroupUsers(session.token, inviteUsername.trim())
+      .then((results) => { if (active) setUsernameResults(results) })
+      .catch(() => { if (active) setUsernameResults([]) }), 220)
+    return () => { active = false; window.clearTimeout(timeout) }
+  }, [inviteGroupId, inviteUsername, session.token])
 
   useEffect(() => {
     try {
@@ -98,11 +126,12 @@ export default function GroupsScreen({ session, profile, showNotice }) {
 
   const invite = async (event) => {
     event.preventDefault()
-    if (!inviteGroupId || !inviteEmail.trim()) return
+    if (!inviteGroupId || !inviteUsername.trim()) return
     setInviting(true)
     try {
-      await inviteToBackendGroup(session.token, inviteGroupId, inviteEmail.trim())
-      setInviteEmail('')
+      await inviteToBackendGroup(session.token, inviteGroupId, inviteUsername.trim())
+      setInviteUsername('')
+      setUsernameResults([])
       setInviteGroupId('')
       showNotice('Invitation sent.')
     } catch (inviteError) {
@@ -110,6 +139,24 @@ export default function GroupsScreen({ session, profile, showNotice }) {
     } finally {
       setInviting(false)
     }
+  }
+
+  const shareInviteLink = async (group) => {
+    setInviteLinkBusy(true)
+    try {
+      const token = await createGroupInviteLink(session.token, group.id)
+      const url = new URL(window.location.href)
+      url.search = ''
+      url.hash = ''
+      url.searchParams.set('groupInvite', token)
+      if (navigator.share) await navigator.share({ title: `Join ${group.name}`, url: url.toString() })
+      else {
+        await navigator.clipboard.writeText(url.toString())
+        showNotice('Group invitation link copied.')
+      }
+    } catch (linkError) {
+      if (linkError.name !== 'AbortError') showNotice(linkError.message || 'Could not create the invitation link.')
+    } finally { setInviteLinkBusy(false) }
   }
 
   if (activeGroup) return <GroupDiscussionScreen group={activeGroup} session={session} profile={profile} onBack={() => setActiveGroup(null)} showNotice={showNotice} />
@@ -128,8 +175,8 @@ export default function GroupsScreen({ session, profile, showNotice }) {
         {groups.length ? <div className="group-list">{groups.map((group) => <article className="group-card" key={group.id}>
           <span className="group-subject-icon mint"><Icon name="users" size={20} /></span>
           <div className="group-info"><span className="section-kicker">{group.course || 'STUDY GROUP'}</span><strong>{group.name || 'Study group'}</strong><small>{group.memberIds?.length || 0} members · Created by {group.ownerName || 'a student'}</small>{group.description && <p className="group-description">{group.description}</p>}</div>
-          <div className="group-card-actions"><button className="join-button" onClick={() => setActiveGroup(group)}>Open discussion <Icon name="right" size={14} /></button>{usesBackend && group.ownerId === userId && <button className="join-button group-invite-toggle" onClick={() => { setInviteGroupId((current) => current === group.id ? '' : group.id); setInviteEmail('') }}>{inviteGroupId === group.id ? 'Close invite' : 'Invite member'}</button>}</div>
-          {inviteGroupId === group.id && <form className="group-invite-form" onSubmit={invite}><label>Student email<input type="email" required maxLength="254" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="student@example.com" /></label><button className="primary-button" disabled={inviting}>{inviting ? 'Sending…' : 'Send invite'}</button></form>}
+          <div className="group-card-actions"><button className="join-button" onClick={() => setActiveGroup(group)}>Open discussion <Icon name="right" size={14} /></button>{usesBackend && group.ownerId === userId && <button className="join-button group-invite-toggle" onClick={() => { setInviteGroupId((current) => current === group.id ? '' : group.id); setInviteUsername('') }}>{inviteGroupId === group.id ? 'Close invite' : 'Invite member'}</button>}</div>
+          {inviteGroupId === group.id && <form className="group-invite-form" onSubmit={invite}><label>Find by username<input required minLength="2" maxLength="120" value={inviteUsername} onChange={(event) => setInviteUsername(event.target.value)} placeholder="Type a username" /></label>{usernameResults.length > 0 && <div className="group-user-results">{usernameResults.map((user) => <button type="button" key={user.id} onClick={() => setInviteUsername(user.username)}>{user.username}</button>)}</div>}<div className="group-invite-actions"><button className="primary-button" disabled={inviting || !usernameResults.some((user) => user.username.toLowerCase() === inviteUsername.trim().toLowerCase())}>{inviting ? 'Sending…' : 'Send invite'}</button><button type="button" className="join-button" disabled={inviteLinkBusy} onClick={() => shareInviteLink(group)}>{inviteLinkBusy ? 'Preparing link…' : 'Share invite link'}</button></div></form>}
         </article>)}</div> : <div className="empty-panel groups-empty"><span className="empty-icon"><Icon name="users" size={24} /></span><h3>You haven’t joined a group yet</h3><p>Create a group or accept an invitation to study together.</p><button className="primary-button" onClick={() => setCreating(true)}><Icon name="plus" size={15} /> Create a group</button></div>}
       </section>
     </>}

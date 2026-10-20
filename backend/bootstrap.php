@@ -102,6 +102,9 @@ function last_minute_router(): Router
     $router->add('POST', '/groups', $groupEndpoint('create'));
     $router->add('GET', '/groups/invitations', $groupEndpoint('invitations'));
     $router->add('POST', '/groups/invitations', $groupEndpoint('invite'));
+    $router->add('GET', '/groups/users', $groupEndpoint('searchUsers'));
+    $router->add('POST', '/groups/invite-link', $groupEndpoint('createInviteLink'));
+    $router->add('POST', '/groups/invite-link/join', $groupEndpoint('joinByLink'));
     $router->add('POST', '/groups/invitations/respond', $groupEndpoint('respond'));
     $router->add('GET', '/groups/messages', $groupEndpoint('messages'));
     $router->add('POST', '/groups/messages', $groupEndpoint('sendMessage'));

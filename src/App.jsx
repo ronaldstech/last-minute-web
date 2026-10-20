@@ -32,18 +32,20 @@ const validTabs = new Set(['Home', 'Papers', 'Saved', 'Coins', 'Study groups', '
 function readPageState() {
   try {
     const sharedPaperId = new URLSearchParams(window.location.search).get('paper')
+    const sharedGroupInvite = new URLSearchParams(window.location.search).get('groupInvite')
     const saved = JSON.parse(localStorage.getItem(PAGE_STATE_KEY) || '{}')
     const selectedPaper = sharedPaperId ? { id: sharedPaperId, detailLoading: true } : saved.selectedPaper && typeof saved.selectedPaper === 'object'
       ? { ...saved.selectedPaper, questions: undefined, detailLoading: true }
       : null
     return {
-      activeTab: validTabs.has(saved.activeTab) ? saved.activeTab : 'Home',
+      activeTab: sharedGroupInvite ? 'Study groups' : validTabs.has(saved.activeTab) ? saved.activeTab : 'Home',
       query: typeof saved.query === 'string' ? saved.query : '',
       selectedPaper: selectedPaper && selectedPaper.id !== undefined ? selectedPaper : null,
       sharedPaperId,
+      sharedGroupInvite,
     }
   } catch {
-    return { activeTab: 'Home', query: '', selectedPaper: null, sharedPaperId: null }
+    return { activeTab: 'Home', query: '', selectedPaper: null, sharedPaperId: null, sharedGroupInvite: null }
   }
 }
 
@@ -81,11 +83,12 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (initialPage.sharedGroupInvite) setActiveTab('Study groups')
     restoreSession().then((restored) => {
       if (!restored) {
-        setActiveTab('Home')
+        setActiveTab(initialPage.sharedGroupInvite ? 'Study groups' : 'Home')
         setSelectedPaper(null)
-        if (initialPage.sharedPaperId) setAuthPrompt(true)
+        if (initialPage.sharedPaperId || initialPage.sharedGroupInvite) setAuthPrompt(true)
       }
       if (restored?.authProvider === 'php-mysql') {
         setProfile(restored.profile || null)
@@ -273,7 +276,7 @@ function App() {
 
   if (authLoading) return <div className="auth-loading" role="status">Loading your study space…</div>
 
-  const acceptSession = (userSession) => { setAuthPrompt(false); setActiveTab('Home'); setQuery(''); setSelectedPaper(null); saveSession(userSession); setProfile(userSession.profile); setPapers([]); setSavedIds([]); setPapersLoading(true); setSavedLoading(true); setSession(userSession) }
+  const acceptSession = (userSession) => { setAuthPrompt(false); setActiveTab(initialPage.sharedGroupInvite ? 'Study groups' : 'Home'); setQuery(''); setSelectedPaper(null); saveSession(userSession); setProfile(userSession.profile); setPapers([]); setSavedIds([]); setPapersLoading(true); setSavedLoading(true); setSession(userSession) }
 
   if (!session) return <div className="guest-shell">
     <header className="guest-topbar"><a className="brand" href="#home" onClick={() => { setActiveTab('Home'); setAuthPrompt(false) }}><img src="/logo.png" alt=""/><span><strong>Last Minute</strong><small>EXAM PAPER LIBRARY</small></span></a><button className="guest-signin" onClick={() => setAuthPrompt(true)}>Sign in</button></header>

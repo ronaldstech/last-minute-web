@@ -35,8 +35,23 @@ export async function createBackendGroup(token, data) {
   return result.group
 }
 
-export async function inviteToBackendGroup(token, groupId, email) {
-  return request('/groups/invitations', token, { method: 'POST', body: { groupId, email } })
+export async function searchGroupUsers(token, query) {
+  const result = await request(`/groups/users?q=${encodeURIComponent(query)}`, token)
+  return result.users || []
+}
+
+export async function inviteToBackendGroup(token, groupId, username) {
+  return request('/groups/invitations', token, { method: 'POST', body: { groupId, username } })
+}
+
+export async function createGroupInviteLink(token, groupId) {
+  const result = await request('/groups/invite-link', token, { method: 'POST', body: { groupId } })
+  return result.token
+}
+
+export async function joinGroupByLink(token, inviteToken) {
+  const result = await request('/groups/invite-link/join', token, { method: 'POST', body: { token: inviteToken } })
+  return result.group
 }
 
 export async function respondToBackendInvitation(token, invitationId, accept) {
