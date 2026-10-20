@@ -74,7 +74,7 @@ export function PaperQuestion({ question, index, answers, submissions, submittin
   </article>
 }
 
-export default function PaperDetailScreen({ paper, activeTab, balance, session, sessionToken, onBack, saved = false, onToggleSaved, onUnlock, onReport, onGetCoins, onRetry, loading = false }) {
+export default function PaperDetailScreen({ paper, activeTab, balance, session, sessionToken, onBack, saved = false, onToggleSaved, onUnlock, onReport, onGetCoins, onShare, onRetry, loading = false }) {
   const [unlocking, setUnlocking] = useState(false)
   const [practicing, setPracticing] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -128,7 +128,7 @@ export default function PaperDetailScreen({ paper, activeTab, balance, session, 
 
   return <section className="paper-detail-screen">
     <button className="back-link" onClick={onBack}>← Back to {activeTab.toLowerCase()}</button>
-    <div className="paper-detail-topline"><span className={`paper-subject ${paper.tone}-text`}>{paper.subject}</span><div className="paper-detail-actions">{onReport && <button className="paper-detail-save" onClick={() => { setReportError(''); setReportOpen(true) }}><Icon name="bell" size={15}/>Report issue</button>}{onToggleSaved && <button className={`paper-detail-save ${saved ? 'is-saved' : ''}`} onClick={onToggleSaved}><Icon name="bookmark" size={15}/>{saved ? 'Saved' : 'Save paper'}</button>}</div></div>
+    <div className="paper-detail-topline"><span className={`paper-subject ${paper.tone}-text`}>{paper.subject}</span><div className="paper-detail-actions">{onShare && <button className="paper-detail-save" onClick={onShare}><Icon name="share" size={15}/>Share</button>}{onReport && <button className="paper-detail-save" onClick={() => { setReportError(''); setReportOpen(true) }}><Icon name="bell" size={15}/>Report issue</button>}{onToggleSaved && <button className={`paper-detail-save ${saved ? 'is-saved' : ''}`} onClick={onToggleSaved}><Icon name="bookmark" size={15}/>{saved ? 'Saved' : 'Save paper'}</button>}</div></div>
     <h1>{paper.course || paper.title || 'Question paper'}</h1>
     <p>{[paper.title, paper.year, paper.semester ? `Semester ${paper.semester}` : '', paper.departmentName, `${Number(paper.questionCount || paper.questions?.length || 0)} questions`].filter(Boolean).join(' | ')}</p>
     <section className="paper-reported-issues"><div className="paper-reported-issues-heading"><div><span>COMMUNITY REPORTS</span><h2>Reported issues <b>{paperReports.length}</b></h2></div></div>{loadingPaperReports ? <p className="paper-reported-issues-state">Loading reported issues...</p> : paperReportsError ? <p className="paper-reported-issues-state error" role="alert">{paperReportsError}</p> : paperReports.length ? <div className="paper-reported-issues-list">{paperReports.map((report) => <article key={report.id}><header><strong>{report.category || 'Other issue'}</strong><span className={`paper-report-status ${report.status || 'open'}`}>{(report.status || 'open').replace(/^./, (letter) => letter.toUpperCase())}</span></header><p>{report.details || 'No additional details.'}</p><small>{report.createdAt ? new Date(report.createdAt).toLocaleDateString() : 'Date unavailable'}</small></article>)}</div> : <p className="paper-reported-issues-state">No issues have been reported for this paper.</p>}</section>

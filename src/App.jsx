@@ -31,17 +31,19 @@ const validTabs = new Set(['Home', 'Papers', 'Saved', 'Coins', 'Study groups', '
 
 function readPageState() {
   try {
+    const sharedPaperId = new URLSearchParams(window.location.search).get('paper')
     const saved = JSON.parse(localStorage.getItem(PAGE_STATE_KEY) || '{}')
-    const selectedPaper = saved.selectedPaper && typeof saved.selectedPaper === 'object'
+    const selectedPaper = sharedPaperId ? { id: sharedPaperId, detailLoading: true } : saved.selectedPaper && typeof saved.selectedPaper === 'object'
       ? { ...saved.selectedPaper, questions: undefined, detailLoading: true }
       : null
     return {
       activeTab: validTabs.has(saved.activeTab) ? saved.activeTab : 'Home',
       query: typeof saved.query === 'string' ? saved.query : '',
       selectedPaper: selectedPaper && selectedPaper.id !== undefined ? selectedPaper : null,
+      sharedPaperId,
     }
   } catch {
-    return { activeTab: 'Home', query: '', selectedPaper: null }
+    return { activeTab: 'Home', query: '', selectedPaper: null, sharedPaperId: null }
   }
 }
 
@@ -61,6 +63,7 @@ function App() {
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [authPrompt, setAuthPrompt] = useState(false)
   const coinBalance = Number(profile?.coinBalance || 0) + Number(profile?.freeCoinBalance || 0)
 
   useEffect(() => {
@@ -79,6 +82,11 @@ function App() {
 
   useEffect(() => {
     restoreSession().then((restored) => {
+      if (!restored) {
+        setActiveTab('Home')
+        setSelectedPaper(null)
+        if (initialPage.sharedPaperId) setAuthPrompt(true)
+      }
       if (restored?.authProvider === 'php-mysql') {
         setProfile(restored.profile || null)
         setPapers([])
@@ -148,9 +156,13 @@ function App() {
   }, [papers, selectedPaper])
 
   useEffect(() => {
-    if (session?.authProvider !== 'php-mysql' || !initialPage.selectedPaper?.id || selectedPaper?.id !== initialPage.selectedPaper.id) return undefined
+    const paperId = initialPage.sharedPaperId || initialPage.selectedPaper?.id
+    if (!session || !paperId) return undefined
     let active = true
-    getStudentPaper(session.token, initialPage.selectedPaper.id).then((paper) => {
+    const paperRequest = session.authProvider === 'php-mysql'
+      ? getStudentPaper(session.token, paperId)
+      : listPapers(session.idToken).then((records) => records.find((paper) => String(paper.id) === String(paperId)) || Promise.reject(new Error('This paper is no longer available.')))
+    paperRequest.then((paper) => {
       if (!active) return
       const [decorated] = decoratePapers([paper])
       setSelectedPaper(decorated)
@@ -158,7 +170,7 @@ function App() {
       if (active) { setSelectedPaper(null); showNotice(error.message || 'Could not reopen this paper.') }
     })
     return () => { active = false }
-  }, [session, initialPage.selectedPaper?.id, selectedPaper?.id, showNotice])
+  }, [session, initialPage.sharedPaperId, initialPage.selectedPaper?.id, showNotice])
 
   const filteredPapers = useMemo(() => papers.filter((paper) => {
     const searchText = `${paper.subject || ''} ${paper.course || ''} ${paper.title || ''} ${paper.detail || ''} ${paper.departmentName || ''} ${(paper.programmeAssignments || []).map((item) => item.programmeName || '').join(' ')}`.toLowerCase()
@@ -166,6 +178,7 @@ function App() {
   }), [papers, query])
 
   const toggleSaved = (id) => {
+    if (!session) { setAuthPrompt(true); return }
     const currentlySaved = savedIds.includes(id)
     setSavedIds((current) => currentlySaved
       ? current.filter((savedId) => savedId !== id)
@@ -185,12 +198,14 @@ function App() {
   }
 
   const navigate = (tab) => {
+    if (!session && tab !== 'Home') { setAuthPrompt(true); return }
     setProfileMenuOpen(false)
     setActiveTab(tab)
     setSelectedPaper(null)
   }
 
   const openPaper = (paper) => {
+    if (!session) { setAuthPrompt(true); return }
     setSelectedPaper({ ...paper, detailLoading: true, detailError: '' })
     const loadDetail = session.authProvider === 'php-mysql'
       ? getStudentPaper(session.token, paper.id)
@@ -202,6 +217,21 @@ function App() {
       setSelectedPaper((current) => current?.id === paper.id ? { ...current, detailLoading: false, detailError: error.message || 'Could not load this paper.' } : current)
       showNotice(error.message || 'Could not load this paper.')
     })
+  }
+
+  const sharePaper = async (paper) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('paper', String(paper.id))
+    url.hash = ''
+    try {
+      if (navigator.share) await navigator.share({ title: paper.course || paper.title || 'Exam paper', url: url.toString() })
+      else {
+        await navigator.clipboard.writeText(url.toString())
+        showNotice('Paper link copied. Anyone opening it will need to sign in.')
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') showNotice('Could not share this link. Copy the page URL and try again.')
+    }
   }
 
   const unlockPaper = async (paperId) => {
@@ -243,12 +273,14 @@ function App() {
 
   if (authLoading) return <div className="auth-loading" role="status">Loading your study space…</div>
 
-  if (!session) {
-    return <>
-      <AuthScreen onAuthenticated={(userSession) => { setActiveTab('Home'); setQuery(''); setSelectedPaper(null); saveSession(userSession); setProfile(userSession.profile); setPapers([]); setSavedIds([]); setPapersLoading(true); setSavedLoading(true); setSession(userSession) }} showNotice={showNotice} />
-      {notice && <div className="toast auth-toast" role="status">{notice}</div>}
-    </>
-  }
+  const acceptSession = (userSession) => { setAuthPrompt(false); setActiveTab('Home'); setQuery(''); setSelectedPaper(null); saveSession(userSession); setProfile(userSession.profile); setPapers([]); setSavedIds([]); setPapersLoading(true); setSavedLoading(true); setSession(userSession) }
+
+  if (!session) return <div className="guest-shell">
+    <header className="guest-topbar"><a className="brand" href="#home" onClick={() => { setActiveTab('Home'); setAuthPrompt(false) }}><img src="/logo.png" alt=""/><span><strong>Last Minute</strong><small>EXAM PAPER LIBRARY</small></span></a><button className="guest-signin" onClick={() => setAuthPrompt(true)}>Sign in</button></header>
+    <main className="guest-content" id="home"><HomeScreen query={query} setQuery={setQuery} papers={[]} loading={false} onNavigate={navigate} onOpenPaper={openPaper} savedIds={[]} onToggleSaved={toggleSaved} guest/></main>
+    {authPrompt && <div className="guest-auth-overlay" role="dialog" aria-modal="true" aria-label="Sign in to continue"><button className="guest-auth-close" aria-label="Close sign in" onClick={() => setAuthPrompt(false)}>×</button><AuthScreen onAuthenticated={acceptSession} showNotice={showNotice}/></div>}
+    {notice && <div className="toast" role="status">{notice}</div>}
+  </div>
 
   const renderScreen = () => {
     if (selectedPaper) {
@@ -265,6 +297,7 @@ function App() {
         onReport={(category, details) => submitPaperReport(session, selectedPaper, category, details)}
         onUnlock={() => unlockPaper(selectedPaper.id)}
         onGetCoins={() => navigate('Coins')}
+        onShare={() => sharePaper(selectedPaper)}
         onRetry={() => openPaper(selectedPaper)}
       />
     }

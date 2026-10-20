@@ -1,7 +1,7 @@
 import Icon from '../components/Icon.jsx'
 import PaperList from '../components/PaperList.jsx'
 
-export default function HomeScreen({ query, setQuery, papers, onNavigate, onOpenPaper, savedIds, onToggleSaved, loading }) {
+export default function HomeScreen({ query, setQuery, papers, onNavigate, onOpenPaper, savedIds, onToggleSaved, loading, guest = false }) {
   const subjectStyles = ['mint', 'peach', 'blue', 'violet', 'yellow']
   const subjectIcons = ['flask', 'beaker', 'sigma', 'atom', 'book']
   const subjectCounts = papers.reduce((counts, paper) => {
@@ -31,11 +31,11 @@ export default function HomeScreen({ query, setQuery, papers, onNavigate, onOpen
       <button aria-label="Search filters" onClick={() => onNavigate('Papers')}><Icon name="sliders" size={17} /></button>
     </div>
 
-    <section className="shortcut-row" aria-label="Study shortcuts">
+    {!guest && <section className="shortcut-row" aria-label="Study shortcuts">
       <button className="shortcut unlocked" onClick={() => onNavigate('Papers')}><span className="shortcut-icon"><Icon name="clock" /></span><span className="shortcut-copy"><strong>Unlocked papers</strong><small>Pick up where you left off</small></span><span className="arrow"><Icon name="arrow" size={15} /></span></button>
       <button className="shortcut coins" onClick={() => onNavigate('Coins')}><span className="shortcut-icon"><Icon name="coins" /></span><span className="shortcut-copy"><strong>Coins</strong><small>Top up to unlock papers</small></span><span className="arrow"><Icon name="arrow" size={15} /></span></button>
       <button className="shortcut groups" onClick={() => onNavigate('Study groups')}><span className="shortcut-icon"><Icon name="users" /></span><span className="shortcut-copy"><strong>Study groups</strong><small>Learn better together</small></span><span className="arrow"><Icon name="arrow" size={15} /></span></button>
-    </section>
+    </section>}
 
     <section className="feature-banner">
       <div className="banner-content"><span className="banner-label">YOUR NEXT STUDY SESSION</span><h2>Practice makes<br />progress.</h2><p>Build confidence, one paper at a time.</p><button onClick={() => onNavigate('Papers')}>Explore the library <Icon name="right" size={14} /></button></div>
@@ -43,14 +43,15 @@ export default function HomeScreen({ query, setQuery, papers, onNavigate, onOpen
       <div className="banner-number"><strong>100+</strong><span>papers to explore</span></div>
     </section>
 
-    <section className="section-block">
+    {!guest && <section className="section-block">
       <div className="section-heading"><div><span className="section-kicker">FIND YOUR FOCUS</span><h2>Browse by subject</h2></div><button className="text-link" onClick={() => onNavigate('Papers')}>See all subjects <Icon name="right" size={13} /></button></div>
       <div className="subject-grid">{subjects.slice(0, 10).map((subject) => <button className="subject-card" key={subject.name} onClick={() => { setQuery(subject.name); onNavigate('Papers') }}><span className={`subject-icon ${subject.tone}`}><Icon name={subject.icon} size={17} /></span><span className="subject-name">{subject.name}</span><span className="subject-count">{subject.count}</span><span className="subject-arrow"><Icon name="arrow" size={12} /></span></button>)}</div>
-    </section>
+    </section>}
 
-    <section className="section-block recent-section">
+    {!guest && <section className="section-block recent-section">
       <div className="section-heading"><div><span className="section-kicker">FRESH FROM THE LIBRARY</span><h2>Recently added</h2></div><button className="text-link" onClick={() => onNavigate('Papers')}>Browse all papers <Icon name="right" size={13} /></button></div>
       <PaperList papers={papers.slice(0, 3)} savedIds={savedIds} onOpen={onOpenPaper} onToggleSaved={onToggleSaved} loading={loading} />
-    </section>
+    </section>}
+    {guest && <section className="guest-library-cta"><strong>Explore past papers and study tools</strong><p>Sign in or create an account to browse papers, save your favourites, and track your activity.</p><button onClick={() => onNavigate('Papers')}>Get started</button></section>}
   </>
 }
