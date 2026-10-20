@@ -231,6 +231,16 @@ function App() {
     setSavedIds([])
   }
 
+  const expireSession = useCallback(() => {
+    clearSession()
+    setSession(null)
+    setProfile(null)
+    setSelectedPaper(null)
+    setActiveTab('Home')
+    setPapers([])
+    setSavedIds([])
+  }, [])
+
   if (authLoading) return <div className="auth-loading" role="status">Loading your study space…</div>
 
   if (!session) {
@@ -283,7 +293,7 @@ function App() {
       case 'History':
         return <HistoryScreen session={session} />
       case 'Admin':
-        return <AdminScreen session={session} profile={profile} onBack={() => navigate('Profile')} showNotice={showNotice} />
+        return <AdminScreen session={session} profile={profile} onBack={() => navigate('Profile')} onSessionExpired={expireSession} showNotice={showNotice} />
       default:
         return <HomeScreen
           query={query}

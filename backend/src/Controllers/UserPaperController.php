@@ -7,6 +7,7 @@ use LastMinute\Http\ApiException;
 use LastMinute\Http\Request;
 use LastMinute\Middleware\Authenticate;
 use LastMinute\Repositories\UserPaperRepository;
+use PDOException;
 
 /** Student-facing paper browsing, saved papers, and paid access. */
 final class UserPaperController
@@ -24,7 +25,12 @@ final class UserPaperController
     public function history(Request $request): array
     {
         $user = $this->authenticate->user($request);
-        return ['data' => ['unlocks' => $this->papers->history($user['id'])]];
+        try {
+            return ['data' => ['unlocks' => $this->papers->history($user['id'])]];
+        } catch (PDOException $error) {
+            if ($error->getCode() === '42S02') throw new ApiException('Account history needs database migration 018_add_paper_unlock_history.sql.', 503);
+            throw $error;
+        }
     }
 
     public function show(Request $request): array
@@ -57,7 +63,12 @@ final class UserPaperController
     {
         $user = $this->authenticate->user($request);
         $id = $this->paperId($request->query('id'));
-        $result = $this->papers->unlock($user['id'], $id, self::UNLOCK_COST);
+        try {
+            $result = $this->papers->unlock($user['id'], $id, self::UNLOCK_COST);
+        } catch (PDOException $error) {
+            if ($error->getCode() === '42S02') throw new ApiException('Paper unlock history needs database migration 018_add_paper_unlock_history.sql.', 503);
+            throw $error;
+        }
         if (!$result['paperFound']) throw new ApiException('Paper not found.', 404);
         if (!$result['affordable']) throw new ApiException('You need 20 coins to unlock this paper. Add coins and try again.', 409);
         $paper = $this->papers->findForUser($user['id'], $id);

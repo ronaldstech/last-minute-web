@@ -17,7 +17,7 @@ final class Authenticate
     public function user(Request $request): array
     {
         $token = $request->bearerToken();
-        if ($token === null) throw new ApiException('Your session has expired. Sign in again.', 401);
+        if ($token === null) throw new ApiException('The account service did not receive a valid bearer token.', 401);
         $row = $this->sessions->findActiveUser(hash('sha256', $token));
         if (!$row) throw new ApiException('Your session has expired. Sign in again.', 401);
         return UserSerializer::public($row);

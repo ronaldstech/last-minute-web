@@ -41,10 +41,24 @@ final class Request
         }
         $path = $uriPath ?: '/';
         if ($path === '') $path = '/';
-        $headers = function_exists('getallheaders') ? getallheaders() : [];
-        if (!isset($headers['Authorization']) && isset($_SERVER['HTTP_AUTHORIZATION'])) {
-            $headers['Authorization'] = $_SERVER['HTTP_AUTHORIZATION'];
+        $receivedHeaders = function_exists('getallheaders') ? (getallheaders() ?: []) : [];
+        $authorization = '';
+        foreach ($receivedHeaders as $name => $value) {
+            if (strtolower((string)$name) === 'authorization') {
+                $authorization = (string)$value;
+                break;
+            }
         }
+        if ($authorization === '') {
+            foreach (['HTTP_AUTHORIZATION', 'REDIRECT_HTTP_AUTHORIZATION'] as $serverKey) {
+                if (!empty($_SERVER[$serverKey])) {
+                    $authorization = (string)$_SERVER[$serverKey];
+                    break;
+                }
+            }
+        }
+        $headers = $receivedHeaders;
+        if ($authorization !== '') $headers['authorization'] = $authorization;
         return new self(strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'), $path, file_get_contents('php://input') ?: '', $headers, $_GET, $_FILES);
     }
 
@@ -74,7 +88,13 @@ final class Request
     /** Return a syntactically valid opaque bearer token, if supplied. */
     public function bearerToken(): ?string
     {
-        $authorization = $this->headers['Authorization'] ?? $this->headers['authorization'] ?? '';
+        $authorization = '';
+        foreach ($this->headers as $name => $value) {
+            if (strtolower((string)$name) === 'authorization') {
+                $authorization = (string)$value;
+                break;
+            }
+        }
         if (!preg_match('/^Bearer\s+([a-f0-9]{64})$/i', (string)$authorization, $match)) return null;
         return strtolower($match[1]);
     }

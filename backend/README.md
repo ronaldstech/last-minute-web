@@ -9,7 +9,7 @@ The admin question-image upload route stores images in `public/uploads/question-
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. Configure database credentials in `config.php` (copy `config.php.example`) or use `.env` for local development. PHP environment variables still take precedence when the host provides them.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run all migrations through `migrations/017_add_super_admin_role.sql` once, in order. Migration 017 promotes the earliest existing administrator to super administrator; use that account to grant admin access and manage privileged actions.
+   For a database created from an earlier schema, run all migrations through `migrations/018_add_paper_unlock_history.sql` once, in order. Migration 017 promotes the earliest existing administrator to super administrator; migration 018 enables per-unlock account history and analytics.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
@@ -80,6 +80,7 @@ Errors use `{ "message": "..." }` JSON.
 | `PATCH` | `/backend/public/admin/users?id={id}` | Admin bearer token | Set `{ "isAdmin": true|false }` or `{ "isSuspended": true|false }`. |
 | `POST` | `/backend/public/admin/users/gift?id={id}` | Admin bearer token | Add `{ "amount": 50 }` free coins to an account. |
 | `GET` | `/backend/public/admin/marking?limit=50` | Admin bearer token | View individual practice marking totals and recent attempts, plus group marking totals, per-group usage, and recent answer-level marker events. |
+| `GET` | `/backend/public/admin/account-history` | Admin bearer token | View system unlock/top-up totals, activity by every account, and the latest 100 account events. Requires migration `018_add_paper_unlock_history.sql`. |
 | `GET` | `/backend/public/admin/academics?type=colleges` | Admin bearer token | List colleges. Use `type=schools&parentId={collegeId}`, `type=departments&parentId={schoolId}`, or `type=programmes&parentId={departmentId}` for descendants. Returns `records`. |
 | `GET` | `/backend/public/academics?type=colleges` | Bearer token | Read the academic directory for profile selections. Use `type=schools&parentId={collegeId}`, `type=departments&parentId={schoolId}`, or `type=programmes&parentId={departmentId}` for descendants. Returns `records` with `id`, `name`, and `alias`. |
 | `POST` | `/backend/public/admin/academics` | Admin bearer token | Create `{ "type": "colleges|schools|departments|programmes", "name": "...", "alias": "...", "parentId": "..." }`. `parentId` is required below college level. Returns `record`. |

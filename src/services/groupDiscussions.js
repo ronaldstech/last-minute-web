@@ -61,9 +61,10 @@ export async function scheduleGroupDiscussion(token, group, userId, paper, sched
   if (!questions.length) throw new Error('This paper does not have discussion questions yet.')
   const id = crypto.randomUUID().replaceAll('-', '')
   const date = new Date(scheduledAt)
-  const details = { examType: paper.title || paper.name || 'Paper discussion', course: paper.course || '', year: paper.year || '', semester: paper.semester || '', questionCount: questions.length }
+  const details = { examType: paper.title || paper.name || 'Paper discussion', course: paper.course || paper.subject || '', year: paper.year || '', semester: paper.semester || '', questionCount: questions.length }
+  const displayTitle = details.course || details.examType
   const plan = {
-    groupId: group.id, paperId: paper.id, paperTitle: details.examType, course: details.course,
+    groupId: group.id, paperId: paper.id, paperTitle: displayTitle, course: details.course,
     year: details.year, semester: details.semester, paperDetails: details, questions, questionCount: questions.length,
     scheduledAt: date, createdBy: userId, createdAt: new Date(), joinedMemberIds: [], currentQuestionIndex: -1,
   }
@@ -77,9 +78,9 @@ export async function scheduleGroupDiscussion(token, group, userId, paper, sched
     }) } },
   ]
   for (const memberId of current.memberIds || []) writes.push({ update: { name: documentName(`notifications/group-plan-${id}-${memberId}`), fields: encodeFields({
-    title: 'Group discussion scheduled', body: `${group.name}: ${details.examType}`, kind: 'info',
+    title: 'Group discussion scheduled', body: `${group.name}: ${displayTitle}`, kind: 'info',
     userId: memberId, createdBy: userId, createdAt: new Date(),
-    details: { Group: group.name, Paper: details.examType, 'Discussion time': date.toLocaleString() },
+    details: { Group: group.name, Paper: displayTitle, 'Discussion time': date.toLocaleString() },
     readBy: [], actionStatus: null,
   }) } })
   await commitWrites(token, writes)
