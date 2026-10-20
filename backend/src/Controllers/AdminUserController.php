@@ -33,11 +33,16 @@ final class AdminUserController
         if (!preg_match('/^[1-9][0-9]{0,18}$/', $id)) throw new ApiException('A valid user ID is required.', 422);
         $input = $request->json();
         if (array_keys($input) === ['isAdmin'] && is_bool($input['isAdmin'])) {
+            $this->requireSuperAdmin($admin);
             if ($id === $admin['id']) throw new ApiException('You cannot change your own administrator access.', 409);
+            $target = $this->users->find($id);
+            if ($target && $target['role'] === 'super_admin') throw new ApiException('Super administrator access cannot be changed here.', 409);
             if (!$input['isAdmin'] && $this->users->adminCount() <= 1) throw new ApiException('At least one administrator account must remain.', 409);
             $row = $this->users->updateFlag($id, 'role', $input['isAdmin']);
         } elseif (array_keys($input) === ['isSuspended'] && is_bool($input['isSuspended'])) {
             if ($id === $admin['id'] && $input['isSuspended']) throw new ApiException('You cannot suspend your own account.', 409);
+            $target = $this->users->find($id);
+            if ($target && $target['role'] === 'super_admin' && empty($admin['isSuperAdmin'])) throw new ApiException('Only a super administrator can change this account.', 403);
             $row = $this->users->updateFlag($id, 'isSuspended', $input['isSuspended']);
         } else {
             throw new ApiException('Set either isAdmin or isSuspended to a boolean value.', 422);
@@ -48,7 +53,8 @@ final class AdminUserController
 
     public function gift(Request $request): array
     {
-        $this->requireAdmin($request);
+        $admin = $this->authenticate->user($request);
+        $this->requireSuperAdmin($admin);
         $id = $request->query('id');
         if (!preg_match('/^[1-9][0-9]{0,18}$/', $id)) throw new ApiException('A valid user ID is required.', 422);
         $input = $request->json();
@@ -64,5 +70,10 @@ final class AdminUserController
         $admin = $this->authenticate->user($request);
         if (!$admin['isAdmin']) throw new ApiException('Administrator access is required.', 403);
         return $admin;
+    }
+
+    private function requireSuperAdmin(array $admin): void
+    {
+        if (empty($admin['isSuperAdmin'])) throw new ApiException('Super administrator access is required.', 403);
     }
 }

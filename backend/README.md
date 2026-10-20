@@ -9,7 +9,7 @@ The admin question-image upload route stores images in `public/uploads/question-
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. Configure database credentials in `config.php` (copy `config.php.example`) or use `.env` for local development. PHP environment variables still take precedence when the host provides them.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run `migrations/001_add_user_suspension.sql` through `migrations/014_add_group_answer_marks.sql` once, in order.
+   For a database created from an earlier schema, run all migrations through `migrations/017_add_super_admin_role.sql` once, in order. Migration 017 promotes the earliest existing administrator to super administrator; use that account to grant admin access and manage privileged actions.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 

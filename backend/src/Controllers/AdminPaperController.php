@@ -56,7 +56,7 @@ final class AdminPaperController
 
     public function delete(Request $request): array
     {
-        $this->requireAdmin($request);
+        $this->requireSuperAdmin($request);
         $id = $request->query('id');
         $this->validateId($id);
         if (!$this->papers->delete($id)) throw new ApiException('Paper not found.', 404);
@@ -134,6 +134,13 @@ final class AdminPaperController
     {
         $admin = $this->authenticate->user($request);
         if (!$admin['isAdmin']) throw new ApiException('Administrator access is required.', 403);
+        return $admin;
+    }
+
+    private function requireSuperAdmin(Request $request): array
+    {
+        $admin = $this->authenticate->user($request);
+        if (empty($admin['isSuperAdmin'])) throw new ApiException('Super administrator access is required.', 403);
         return $admin;
     }
 }

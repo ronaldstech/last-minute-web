@@ -50,6 +50,6 @@ final class AdminUserRepository
 
     public function adminCount(): int
     {
-        return (int)$this->pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
+        return (int)$this->pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'super_admin')")->fetchColumn();
     }
 }
