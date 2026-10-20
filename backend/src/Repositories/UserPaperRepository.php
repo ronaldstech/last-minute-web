@@ -44,6 +44,13 @@ final class UserPaperRepository
         return (bool)$query->fetchColumn();
     }
 
+    public function history(string $userId): array
+    {
+        $query = $this->pdo->prepare('SELECT e.id, e.paper_id AS paperId, p.title AS paperTitle, p.course, p.year, e.free_coins_spent AS freeCoinsSpent, e.purchased_coins_spent AS purchasedCoinsSpent, e.unlocked_at AS createdAt, DATE_ADD(e.unlocked_at, INTERVAL 24 HOUR) AS expiresAt FROM user_paper_unlock_events e JOIN papers p ON p.id = e.paper_id WHERE e.user_id = ? ORDER BY e.unlocked_at DESC, e.id DESC LIMIT 500');
+        $query->execute([$userId]);
+        return $query->fetchAll();
+    }
+
     public function setSaved(string $userId, string $paperId, bool $saved): void
     {
         if ($saved) {
@@ -96,6 +103,8 @@ final class UserPaperRepository
                     $record = $this->pdo->prepare('INSERT INTO user_paper_unlocks (user_id, paper_id, free_coins_spent, purchased_coins_spent) VALUES (?, ?, ?, ?)');
                     $record->execute([$userId, $paperId, $freeSpent, $purchasedSpent]);
                 }
+                $event = $this->pdo->prepare('INSERT INTO user_paper_unlock_events (user_id, paper_id, free_coins_spent, purchased_coins_spent) VALUES (?, ?, ?, ?)');
+                $event->execute([$userId, $paperId, $freeSpent, $purchasedSpent]);
                 $balances['free_coin_balance'] = (int)$balances['free_coin_balance'] - $freeSpent;
                 $balances['coin_balance'] = (int)$balances['coin_balance'] - $purchasedSpent;
             }

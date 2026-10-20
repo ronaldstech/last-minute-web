@@ -50,6 +50,7 @@ Errors use `{ "message": "..." }` JSON.
 | `PATCH` | `/backend/public/admin/papers?id={id}` | Admin bearer token | Replace a paper's metadata, department, programme assignments, and question content. Returns the updated `paper`. |
 | `DELETE` | `/backend/public/admin/papers?id={id}` | Admin bearer token | Delete a paper from the SQL library. |
 | `GET` | `/backend/public/papers` | Student bearer token | List papers with saved/unlocked state and no question content. |
+| `GET` | `/backend/public/history` | Student bearer token | Read the account's paper unlock history, including coin sources and access expiry. Run migration `018_add_paper_unlock_history.sql` on existing databases. |
 | `GET` | `/backend/public/papers/detail?id={id}` | Student bearer token | Read paper details; question content is returned only after it is unlocked. |
 | `POST` | `/backend/public/papers/saved?id={id}` | Student bearer token | Save a paper to the account. |
 | `DELETE` | `/backend/public/papers/saved?id={id}` | Student bearer token | Remove a paper from the account's saved list. |

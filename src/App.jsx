@@ -4,6 +4,7 @@ import AuthScreen from './screens/AuthScreen.jsx'
 import AdminScreen from './screens/AdminScreen.jsx'
 import CoinsScreen from './screens/CoinsScreen.jsx'
 import GroupsScreen from './screens/GroupsScreen.jsx'
+import HistoryScreen from './screens/HistoryScreen.jsx'
 import HomeScreen from './screens/HomeScreen.jsx'
 import PaperDetailScreen from './screens/PaperDetailScreen.jsx'
 import { submitPaperReport } from './services/paperReports.js'
@@ -26,7 +27,7 @@ const navItems = [
 ]
 
 const PAGE_STATE_KEY = 'last-minute-page-state'
-const validTabs = new Set(['Home', 'Papers', 'Saved', 'Coins', 'Study groups', 'Notifications', 'Profile', 'Admin'])
+const validTabs = new Set(['Home', 'Papers', 'Saved', 'Coins', 'Study groups', 'Notifications', 'Profile', 'History', 'Admin'])
 
 function readPageState() {
   try {
@@ -47,6 +48,7 @@ function readPageState() {
 function App() {
   const [initialPage] = useState(readPageState)
   const [activeTab, setActiveTab] = useState(initialPage.activeTab)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [query, setQuery] = useState(initialPage.query)
   const [notice, setNotice] = useState('')
   const noticeTimer = useRef(null)
@@ -183,6 +185,7 @@ function App() {
   }
 
   const navigate = (tab) => {
+    setProfileMenuOpen(false)
     setActiveTab(tab)
     setSelectedPaper(null)
   }
@@ -277,6 +280,8 @@ function App() {
         return <NotificationsScreen session={session} onUnreadCount={setUnreadNotifications} showNotice={showNotice} />
       case 'Profile':
         return <ProfileScreen session={session} profile={profile} onProfileChange={setProfile} onSignOut={signOut} onOpenAdmin={() => navigate('Admin')} showNotice={showNotice} />
+      case 'History':
+        return <HistoryScreen session={session} />
       case 'Admin':
         return <AdminScreen session={session} profile={profile} onBack={() => navigate('Profile')} showNotice={showNotice} />
       default:
@@ -316,7 +321,7 @@ function App() {
         {navigation('side-nav')}
         <div className="sidebar-bottom">
           <div className="help-card"><div className="help-icon"><Icon name="spark" size={17} /></div><strong>Keep your momentum</strong><p>A little practice each day adds up.</p><button onClick={() => showNotice('Your study streak starts today!')}>View study tips <Icon name="arrow" size={12} /></button></div>
-          <button className="profile-row" onClick={() => navigate('Profile')}><span className="avatar">{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</span><span><strong>{profile?.username || session.name || session.email || 'Student account'}</strong><small>View profile</small></span><span className="more"><Icon name="more" size={18} /></span></button>
+          <div className="profile-menu-wrap"><button className="profile-row" aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((open) => !open)}><span className="avatar">{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</span><span><strong>{profile?.username || session.name || session.email || 'Student account'}</strong><small>Account menu</small></span><span className="more"><Icon name="more" size={18} /></span></button>{profileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button></div>}</div>
         </div>
       </aside>
 

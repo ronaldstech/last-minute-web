@@ -81,6 +81,7 @@ function last_minute_router(): Router
     $router->add('GET', '/admin/paper-reports', [$paperReports, 'index']);
     $router->add('PATCH', '/admin/paper-reports', [$paperReports, 'update']);
     $router->add('GET', '/papers', [$userPapers, 'index']);
+    $router->add('GET', '/history', [$userPapers, 'history']);
     $router->add('GET', '/papers/detail', [$userPapers, 'show']);
     $router->add('POST', '/papers/saved', [$userPapers, 'save']);
     $router->add('DELETE', '/papers/saved', [$userPapers, 'unsave']);

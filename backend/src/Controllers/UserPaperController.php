@@ -21,6 +21,12 @@ final class UserPaperController
         return ['data' => ['papers' => $this->papers->listForUser($user['id'])]];
     }
 
+    public function history(Request $request): array
+    {
+        $user = $this->authenticate->user($request);
+        return ['data' => ['unlocks' => $this->papers->history($user['id'])]];
+    }
+
     public function show(Request $request): array
     {
         $user = $this->authenticate->user($request);
