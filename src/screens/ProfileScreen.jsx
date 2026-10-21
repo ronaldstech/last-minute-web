@@ -5,7 +5,6 @@ import { updateAccountProfile } from '../services/authApi.js'
 import { updateUserProfile } from '../services/studyRepository.js'
 import { listCollectionPage } from '../services/firestore.js'
 import { listAcademicCatalog } from '../services/adminAcademics.js'
-import { getProfileCompletion } from '../utils/profileCompletion.js'
 import './ProfileScreen.css'
 
 const fields = [
@@ -113,7 +112,8 @@ export default function ProfileScreen({ session, profile, onProfileChange, onSig
     }
   }
 
-  const completion = getProfileCompletion(form, session.email)
+  const completeFields = fields.filter(({ name }) => String(form[name] || '').trim()).length
+  const completion = Math.round(completeFields / fields.length * 100)
   const academicFields = { college: ['colleges', null], school: ['schools', selectedCollege], department: ['departments', selectedSchool], program: ['programmes', selectedDepartment] }
   const renderFields = (fieldSet) => fieldSet.map((field) => {
     const academic = academicFields[field.name]

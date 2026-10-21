@@ -63,16 +63,6 @@ final class StudyGroupRepository
 
     public function create(string $userId, string $name, string $course, string $description): array
     {
-        $profileQuery = $this->pdo->prepare('SELECT email, username, phone_number, college, school, department, program, year_of_study, semester_number FROM users WHERE id = ? LIMIT 1');
-        $profileQuery->execute([$userId]);
-        $profile = $profileQuery->fetch();
-        $profileIsComplete = $profile !== false;
-        foreach ($profile ?: [] as $value) {
-            if (trim((string)($value ?? '')) === '') $profileIsComplete = false;
-        }
-        if (!$profileIsComplete) {
-            throw new \DomainException('Complete every profile and study detail before creating a study group.');
-        }
         $this->pdo->beginTransaction();
         try {
             $insert = $this->pdo->prepare('INSERT INTO study_groups (name, course, description, owner_id) VALUES (?, ?, ?, ?)');
