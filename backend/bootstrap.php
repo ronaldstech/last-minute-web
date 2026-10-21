@@ -42,15 +42,13 @@ function last_minute_router(): Router
     $controller = new AuthController($auth, new Authenticate($sessions));
     $authenticate = new Authenticate($sessions);
     $adminUsers = new AdminUserController(new \LastMinute\Repositories\AdminUserRepository($pdo), $authenticate);
-    $adminConfiguration = new \LastMinute\Controllers\AdminConfigurationController(new \LastMinute\Repositories\AppConfigurationRepository($pdo), $authenticate);
     $adminMarking = new AdminMarkingController(new \LastMinute\Repositories\AdminMarkingRepository($pdo), $authenticate);
     $adminAccountHistory = new AdminAccountHistoryController(new \LastMinute\Repositories\AdminAccountHistoryRepository($pdo), $authenticate);
     $adminTransactions = new AdminTransactionController(new \LastMinute\Repositories\AdminTransactionRepository($pdo), $authenticate);
     $adminAcademics = new AdminAcademicController(new \LastMinute\Repositories\AcademicStructureRepository($pdo), $authenticate);
     $profile = new ProfileController(new \LastMinute\Repositories\ProfileRepository($pdo), $authenticate);
     $adminPapers = new AdminPaperController(new \LastMinute\Repositories\AdminPaperRepository($pdo), $authenticate);
-    $configurationRepository = new \LastMinute\Repositories\AppConfigurationRepository($pdo);
-    $userPapers = new UserPaperController(new \LastMinute\Repositories\UserPaperRepository($pdo), $authenticate, $configurationRepository);
+    $userPapers = new UserPaperController(new \LastMinute\Repositories\UserPaperRepository($pdo), $authenticate);
     $practiceAnswers = new PracticeAnswerController(new \LastMinute\Repositories\PracticeAnswerRepository($pdo), $authenticate);
     $paperReports = new PaperReportController(new \LastMinute\Repositories\PaperReportRepository($pdo), $authenticate);
     // Load wallet classes only when a wallet route is called, so a partial
@@ -73,8 +71,6 @@ function last_minute_router(): Router
     $router->add('GET', '/auth/me', [$controller, 'me']);
     $router->add('POST', '/auth/logout', [$controller, 'logout']);
     $router->add('GET', '/admin/users', [$adminUsers, 'index']);
-    $router->add('GET', '/admin/configuration', [$adminConfiguration, 'show']);
-    $router->add('PATCH', '/admin/configuration', [$adminConfiguration, 'update']);
     $router->add('GET', '/admin/marking', [$adminMarking, 'index']);
     $router->add('GET', '/admin/account-history', [$adminAccountHistory, 'index']);
     $router->add('GET', '/admin/transactions', [$adminTransactions, 'index']);

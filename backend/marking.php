@@ -28,43 +28,15 @@ function createMarkingEvent(PDO $pdo, array $event): string
     }
 }
 
-function finishMarkingEvent(PDO $pdo, string $eventId, string $status, ?float $score, ?string $errorCode, ?string $responseJson, int $coinsCharged = 0): void
+function finishMarkingEvent(PDO $pdo, string $eventId, string $status, ?float $score, ?string $errorCode, ?string $responseJson): void
 {
     try {
-        $query = $pdo->prepare('UPDATE marking_usage_events SET score = ?, status = ?, error_code = ?, response_json = ?, coins_charged = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
-        $query->execute([$score, $status, $errorCode, $responseJson, $coinsCharged, $eventId]);
+        $query = $pdo->prepare('UPDATE marking_usage_events SET score = ?, status = ?, error_code = ?, response_json = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $query->execute([$score, $status, $errorCode, $responseJson, $eventId]);
     } catch (Throwable $error) {
         error_log('[last-minute-marking] Could not finish analytics event: ' . $error->getMessage());
         markingRespond(500, ['error' => 'The marking result could not be recorded. Check the backend database.']);
     }
-}
-
-function reserveMarkingCoins(PDO $pdo, string $userId, int $cost): array|false
-{
-    if ($cost === 0) return ['free' => 0, 'purchased' => 0];
-    $pdo->beginTransaction();
-    try {
-        $query = $pdo->prepare('SELECT coin_balance, free_coin_balance FROM users WHERE id = ? FOR UPDATE');
-        $query->execute([$userId]);
-        $wallet = $query->fetch(PDO::FETCH_ASSOC);
-        if (!$wallet) { $pdo->rollBack(); return false; }
-        $free = min((int)$wallet['free_coin_balance'], $cost);
-        $purchased = $cost - $free;
-        if ((int)$wallet['coin_balance'] < $purchased) { $pdo->rollBack(); return false; }
-        $charge = $pdo->prepare('UPDATE users SET free_coin_balance = free_coin_balance - ?, coin_balance = coin_balance - ? WHERE id = ?');
-        $charge->execute([$free, $purchased, $userId]);
-        $pdo->commit();
-        return ['free' => $free, 'purchased' => $purchased];
-    } catch (Throwable $error) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        throw $error;
-    }
-}
-
-function refundMarkingCoins(PDO $pdo, string $userId, array $charge): void
-{
-    $refund = $pdo->prepare('UPDATE users SET free_coin_balance = free_coin_balance + ?, coin_balance = coin_balance + ? WHERE id = ?');
-    $refund->execute([(int)$charge['free'], (int)$charge['purchased'], $userId]);
 }
 
 $bootstrapCandidates = [__DIR__ . '/bootstrap.php', __DIR__ . '/../backend/bootstrap.php', __DIR__ . '/../bootstrap.php'];
@@ -125,10 +97,6 @@ $paperTitle = isset($data['paper']['title']) ? (string)$data['paper']['title'] :
 $paperCourse = isset($data['paper']['course']) ? (string)$data['paper']['course'] : '';
 $paperYear = isset($data['paper']['year']) ? (string)$data['paper']['year'] : '';
 $sourceType = ($data['sourceType'] ?? '') === 'group_discussion' ? 'group_discussion' : 'practice';
-$pricing = (new \LastMinute\Repositories\AppConfigurationRepository($pdo))->get();
-$coinCostPerQuestion = $sourceType === 'group_discussion'
-    ? (int)$pricing['groupDiscussionMarkingCostPerResponse']
-    : (int)$pricing['practiceMarkingCostPerQuestion'];
 $groupId = $sourceType === 'group_discussion' && isset($data['groupId']) && preg_match('/^[1-9][0-9]{0,18}$/', (string)$data['groupId']) ? (string)$data['groupId'] : null;
 $discussionId = $sourceType === 'group_discussion' && isset($data['discussionId']) && preg_match('/^[1-9][0-9]{0,18}$/', (string)$data['discussionId']) ? (string)$data['discussionId'] : null;
 $groupName = $sourceType === 'group_discussion' ? mb_substr(trim((string)($data['groupName'] ?? '')), 0, 200) : '';
@@ -199,12 +167,6 @@ foreach ($questions as $qIndex => $question) {
         'prompt' => mb_substr($prompt, 0, 5000), 'answer' => $answer, 'maxMarks' => $maxMarks, 'model' => mb_substr($model, 0, 160),
     ]);
 
-    $coinCharge = reserveMarkingCoins($pdo, (string)$user['id'], $coinCostPerQuestion);
-    if ($coinCharge === false) {
-        finishMarkingEvent($pdo, $eventId, 'failed', null, 'insufficient_coins', null);
-        markingRespond(409, ['error' => 'You do not have enough coins to mark this answer.']);
-    }
-
     $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -219,7 +181,6 @@ foreach ($questions as $qIndex => $question) {
 
     $response = curl_exec($ch);
     if ($response === false) {
-        refundMarkingCoins($pdo, (string)$user['id'], $coinCharge);
         finishMarkingEvent($pdo, $eventId, 'failed', null, 'transport_error', null);
         http_response_code(502);
         echo json_encode(['error' => 'Request to Groq failed: ' . curl_error($ch)]);
@@ -232,7 +193,6 @@ foreach ($questions as $qIndex => $question) {
 
     $decoded = json_decode($response, true);
     if ($status < 200 || $status >= 300) {
-        refundMarkingCoins($pdo, (string)$user['id'], $coinCharge);
         finishMarkingEvent($pdo, $eventId, 'failed', null, 'provider_' . (int)$status, null);
         http_response_code($status ?: 502);
         echo json_encode([
@@ -256,7 +216,7 @@ foreach ($questions as $qIndex => $question) {
     $improvements = isset($mark['improvements']) && is_array($mark['improvements']) ? array_map('strval', $mark['improvements']) : [];
     $betterAnswer = isset($mark['betterAnswer']) ? (string)$mark['betterAnswer'] : (isset($mark['answer']) ? (string)$mark['answer'] : '');
 
-    finishMarkingEvent($pdo, $eventId, 'marked', round($score, 2), null, json_encode(['feedback' => $feedback, 'strengths' => $strengths, 'improvements' => $improvements, 'betterAnswer' => $betterAnswer], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $coinCostPerQuestion);
+    finishMarkingEvent($pdo, $eventId, 'marked', round($score, 2), null, json_encode(['feedback' => $feedback, 'strengths' => $strengths, 'improvements' => $improvements, 'betterAnswer' => $betterAnswer], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
     $results[] = [
         'id' => $id,

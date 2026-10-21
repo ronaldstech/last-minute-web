@@ -27,7 +27,6 @@ const icons = {
   trash: <><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></>,
   close: <><path d="m18 6-12 12M6 6l12 12"/></>,
   menu: <><path d="M4 7h16M4 12h16M4 17h16"/></>,
-  logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></>,
 }
 
 export default function Icon({ name, size = 19, className = '' }) {

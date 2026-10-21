@@ -54,7 +54,6 @@ function App() {
   const [initialPage] = useState(readPageState)
   const [activeTab, setActiveTab] = useState(initialPage.activeTab)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-  const [topProfileMenuOpen, setTopProfileMenuOpen] = useState(false)
   const [query, setQuery] = useState(initialPage.query)
   const [notice, setNotice] = useState('')
   const noticeTimer = useRef(null)
@@ -205,7 +204,6 @@ function App() {
   const navigate = (tab) => {
     if (!session && tab !== 'Home') { setAuthPrompt(true); return }
     setProfileMenuOpen(false)
-    setTopProfileMenuOpen(false)
     setActiveTab(tab)
     setSelectedPaper(null)
   }
@@ -240,8 +238,8 @@ function App() {
     }
   }
 
-  const unlockPaper = async (paperId, durationDays) => {
-    const result = await unlockStudentPaper(session.token, paperId, durationDays)
+  const unlockPaper = async (paperId) => {
+    const result = await unlockStudentPaper(session.token, paperId)
     const [decorated] = decoratePapers([result.paper])
     setSelectedPaper(decorated)
     setPapers((current) => current.map((paper) => paper.id === paperId ? { ...paper, isUnlocked: true, unlockExpiresAt: result.paper.unlockExpiresAt } : paper))
@@ -250,8 +248,6 @@ function App() {
   }
 
   const signOut = async () => {
-    setProfileMenuOpen(false)
-    setTopProfileMenuOpen(false)
     await signOutApi(session)
     clearSession()
     setSession(null)
@@ -303,7 +299,7 @@ function App() {
         saved={savedIds.includes(selectedPaper.id)}
         onToggleSaved={() => toggleSaved(selectedPaper.id)}
         onReport={(category, details) => submitPaperReport(session, selectedPaper, category, details)}
-        onUnlock={(durationDays) => unlockPaper(selectedPaper.id, durationDays)}
+        onUnlock={() => unlockPaper(selectedPaper.id)}
         onGetCoins={() => navigate('Coins')}
         onShare={() => sharePaper(selectedPaper)}
         onRetry={() => openPaper(selectedPaper)}
@@ -372,14 +368,14 @@ function App() {
         {navigation('side-nav')}
         <div className="sidebar-bottom">
           <div className="help-card"><div className="help-icon"><Icon name="spark" size={17} /></div><strong>Keep your momentum</strong><p>A little practice each day adds up.</p><button onClick={() => showNotice('Your study streak starts today!')}>View study tips <Icon name="arrow" size={12} /></button></div>
-          <div className="profile-menu-wrap"><button className="profile-row" aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((open) => !open)}><span className="avatar">{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</span><span><strong>{profile?.username || session.name || session.email || 'Student account'}</strong><small>Account menu</small></span><span className="more"><Icon name="more" size={18} /></span></button>{profileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div>
+          <div className="profile-menu-wrap"><button className="profile-row" aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((open) => !open)}><span className="avatar">{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</span><span><strong>{profile?.username || session.name || session.email || 'Student account'}</strong><small>Account menu</small></span><span className="more"><Icon name="more" size={18} /></span></button>{profileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button></div>}</div>
         </div>
       </aside>
 
       <main className="main-area" id="home">
         <header className="topbar">
           <div className="breadcrumb">Study space <span>/</span> <strong>{selectedPaper ? 'Paper details' : activeTab}</strong></div>
-          <div className="top-actions"><button className="icon-button" aria-label="Notifications" onClick={() => navigate('Notifications')}><Icon name="bell" size={18} />{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><div className="profile-menu-wrap top-profile-menu"><button className="top-avatar" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={topProfileMenuOpen} onClick={() => setTopProfileMenuOpen((open) => !open)}>{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</button>{topProfileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div></div>
+          <div className="top-actions"><button className="icon-button" aria-label="Notifications" onClick={() => navigate('Notifications')}><Icon name="bell" size={18} />{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><button className="top-avatar" aria-label="Open profile" onClick={() => navigate('Profile')}>{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</button></div>
         </header>
         <div className="page-content">{renderScreen()}</div>
       </main>

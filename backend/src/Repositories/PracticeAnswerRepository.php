@@ -12,7 +12,7 @@ final class PracticeAnswerRepository
 
     public function submit(string $userId, string $paperId, string $questionKey, string $answer): ?array
     {
-        $paperQuery = $this->pdo->prepare('SELECT p.questions FROM papers p JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL u.unlock_duration_days DAY) WHERE p.id = ? LIMIT 1');
+        $paperQuery = $this->pdo->prepare('SELECT p.questions FROM papers p JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 24 HOUR) WHERE p.id = ? LIMIT 1');
         $paperQuery->execute([$userId, $paperId]);
         $encodedQuestions = $paperQuery->fetchColumn();
         if ($encodedQuestions === false) return null;
