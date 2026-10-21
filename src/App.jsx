@@ -18,6 +18,7 @@ import { getStudentPaper, listStudentPapers, saveStudentPaper, unlockStudentPape
 import './styles/layout.css'
 import './styles/screens.css'
 import './styles/adminStandalone.css'
+import './styles/theme.css'
 
 const navItems = [
   { label: 'Home', icon: 'home' },
@@ -28,7 +29,13 @@ const navItems = [
 ]
 
 const PAGE_STATE_KEY = 'last-minute-page-state'
+const THEME_STORAGE_KEY = 'last-minute-theme'
 const validTabs = new Set(['Home', 'Papers', 'Saved', 'Coins', 'Study groups', 'Notifications', 'Profile', 'History', 'Admin'])
+
+function readTheme() {
+  try { return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light' }
+  catch { return 'light' }
+}
 
 function readPageState() {
   try {
@@ -68,7 +75,15 @@ function App() {
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authPrompt, setAuthPrompt] = useState(false)
+  const [theme, setTheme] = useState(readTheme)
   const coinBalance = Number(profile?.coinBalance || 0) + Number(profile?.freeCoinBalance || 0)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { localStorage.setItem(THEME_STORAGE_KEY, theme) } catch { /* Keep the current theme for this session. */ }
+  }, [theme])
+
+  const toggleTheme = () => setTheme((current) => current === 'dark' ? 'light' : 'dark')
 
   useEffect(() => {
     try {
@@ -294,7 +309,7 @@ function App() {
   const acceptSession = (userSession) => { setAuthPrompt(false); setActiveTab(initialPage.sharedGroupInvite ? 'Study groups' : 'Home'); setQuery(''); setSelectedPaper(null); saveSession(userSession); setProfile(userSession.profile); setPapers([]); setSavedIds([]); setPapersLoading(true); setSavedLoading(true); setSession(userSession) }
 
   if (!session) return <div className="guest-shell">
-    <header className="guest-topbar"><a className="brand" href="#home" onClick={() => { setActiveTab('Home'); setAuthPrompt(false) }}><img src="/logo.png" alt=""/><span><strong>Last Minute</strong><small>EXAM PAPER LIBRARY</small></span></a><button className="guest-signin" onClick={() => setAuthPrompt(true)}>Sign in</button></header>
+    <header className="guest-topbar"><a className="brand" href="#home" onClick={() => { setActiveTab('Home'); setAuthPrompt(false) }}><img src="/logo.png" alt=""/><span><strong>Last Minute</strong><small>EXAM PAPER LIBRARY</small></span></a><div className="guest-topbar-actions"><button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18}/></button><button className="guest-signin" onClick={() => setAuthPrompt(true)}>Sign in</button></div></header>
     <main className="guest-content" id="home"><HomeScreen query={query} setQuery={setQuery} papers={[]} loading={false} onNavigate={navigate} onOpenPaper={openPaper} savedIds={[]} onToggleSaved={toggleSaved} guest/></main>
     {authPrompt && <div className="guest-auth-overlay" role="dialog" aria-modal="true" aria-label="Sign in to continue"><button className="guest-auth-close" aria-label="Close sign in" onClick={() => setAuthPrompt(false)}>×</button><AuthScreen onAuthenticated={acceptSession} showNotice={showNotice}/></div>}
     {notice && <div className="toast" role="status">{notice}</div>}
@@ -389,7 +404,7 @@ function App() {
       <main className="main-area" id="home">
         <header className="topbar">
           <div className="breadcrumb">Study space <span>/</span> <strong>{selectedPaper ? 'Paper details' : activeTab}</strong></div>
-          <div className="top-actions"><button className="icon-button" aria-label="Notifications" onClick={() => navigate('Notifications')}><Icon name="bell" size={18} />{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><div className="profile-menu-wrap top-profile-menu"><button className="top-avatar" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={topProfileMenuOpen} onClick={() => setTopProfileMenuOpen((open) => !open)}>{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</button>{topProfileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div></div>
+          <div className="top-actions"><button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18}/></button><button className="icon-button" aria-label="Notifications" onClick={() => navigate('Notifications')}><Icon name="bell" size={18} />{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><div className="profile-menu-wrap top-profile-menu"><button className="top-avatar" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={topProfileMenuOpen} onClick={() => setTopProfileMenuOpen((open) => !open)}>{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</button>{topProfileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div></div>
         </header>
         <div className="page-content">{renderScreen()}</div>
       </main>
