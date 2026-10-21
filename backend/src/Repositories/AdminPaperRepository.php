@@ -14,14 +14,15 @@ final class AdminPaperRepository
     {
         $query = $this->pdo->prepare('SELECT id, title, course, year, semester, department_id, department_name, programme_assignments, question_count, created_at, updated_at FROM papers WHERE id > ? ORDER BY id ASC LIMIT ' . (int)($limit + 1));
         $query->execute([$afterId]);
-        return $query->fetchAll();
+        return $this->attachProgrammeAliases($query->fetchAll());
     }
 
     public function find(string $id): ?array
     {
         $query = $this->pdo->prepare('SELECT id, title, course, year, semester, department_id, department_name, questions, programme_assignments, question_count, created_at, updated_at FROM papers WHERE id = ? LIMIT 1');
         $query->execute([$id]);
-        return $query->fetch() ?: null;
+        $row = $query->fetch() ?: null;
+        return $row ? $this->attachProgrammeAliases([$row])[0] : null;
     }
 
     public function create(array $paper): array
@@ -47,7 +48,7 @@ final class AdminPaperRepository
 
     public function programmeInDepartment(string $departmentId, string $programmeId): ?array
     {
-        $query = $this->pdo->prepare('SELECT d.id AS departmentId, d.name AS departmentName, p.id AS programmeId, p.name AS programmeName FROM academic_programmes p JOIN academic_departments d ON d.id = p.parent_id WHERE d.id = ? AND p.id = ? LIMIT 1');
+        $query = $this->pdo->prepare('SELECT d.id AS departmentId, d.name AS departmentName, p.id AS programmeId, p.name AS programmeName, p.alias AS programmeAlias FROM academic_programmes p JOIN academic_departments d ON d.id = p.parent_id WHERE d.id = ? AND p.id = ? LIMIT 1');
         $query->execute([$departmentId, $programmeId]);
         return $query->fetch() ?: null;
     }
@@ -88,5 +89,24 @@ final class AdminPaperRepository
     {
         $assignments = json_decode((string)($encoded ?? ''), true);
         return is_array($assignments) ? $assignments : [];
+    }
+
+    private function attachProgrammeAliases(array $rows): array
+    {
+        if (!$rows) return $rows;
+        $aliases = $this->pdo->query("SELECT id, alias FROM academic_programmes WHERE alias IS NOT NULL AND alias <> ''")->fetchAll(PDO::FETCH_KEY_PAIR);
+        foreach ($rows as &$row) {
+            $assignments = self::decodeAssignments($row['programme_assignments'] ?? null);
+            foreach ($assignments as &$assignment) {
+                if (!isset($assignment['alias']) && !isset($assignment['programmeAlias'])) {
+                    $alias = $aliases[$assignment['programmeId'] ?? ''] ?? null;
+                    if ($alias) $assignment['alias'] = $alias;
+                }
+            }
+            unset($assignment);
+            $row['programme_assignments'] = json_encode($assignments, JSON_UNESCAPED_UNICODE) ?: '[]';
+        }
+        unset($row);
+        return $rows;
     }
 }

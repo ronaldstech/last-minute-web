@@ -100,6 +100,7 @@ final class AdminPaperController
             $canonicalAssignments[] = [
                 'programmeId' => (string)$academicRecord['programmeId'],
                 'programmeName' => $academicRecord['programmeName'],
+                'alias' => $academicRecord['programmeAlias'] ?? null,
                 'studyYear' => $studyYear,
             ];
         }

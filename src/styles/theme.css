@@ -47,3 +47,10 @@
 :root[data-theme="dark"] .paper-table-view{border-color:#494365}
 :root[data-theme="dark"] .admin-standalone-shell{background:#101810;color:#e4ece5}
 :root[data-theme="dark"] .guest-signin{background:#685dc4}
+:root[data-theme="dark"] .admin-paper-table-title strong{color:#e5e8f0}
+:root[data-theme="dark"] .admin-paper-table-title small{color:#a3aabb}
+:root[data-theme="dark"] .admin-paper-table-programmes>span{background:#202b25;border-color:#35453b;color:#c3d7c9}
+:root[data-theme="dark"] .admin-paper-table-actions .admin-paper-review-button{background:linear-gradient(145deg,#347e59,#286846);border-color:#438361;color:#f1fff5;box-shadow:0 3px 9px #0003}
+:root[data-theme="dark"] .admin-paper-table-actions .admin-paper-review-button:hover{background:linear-gradient(145deg,#3b8c64,#2c7450);border-color:#5b9c76}
+:root[data-theme="dark"] .admin-paper-table-actions .admin-paper-delete-button{background:#332426;border-color:#57383b;color:#f0aaa5}
+:root[data-theme="dark"] .admin-paper-table-actions .admin-paper-delete-button:hover{background:#442a2c;border-color:#754448;color:#ffc0ba}

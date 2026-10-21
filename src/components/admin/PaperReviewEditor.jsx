@@ -130,7 +130,7 @@ function ProgrammeAssignmentRow({ assignment, index, departmentId, departments, 
     <div className="paper-programme-fields">
       <label>Programme<select required disabled={!department || programmesLoading} value={assignment.programmeId || ''} onChange={(event) => {
         const selected = programmes.find((item) => String(item.id) === event.target.value)
-        update({ programmeId: selected?.id || '', programmeName: selected?.name || '', studyYear: '' })
+        update({ programmeId: selected?.id || '', programmeName: selected?.name || '', alias: selected?.alias || '', programmeAlias: selected?.alias || '', studyYear: '' })
       }}><option value="">{programmesLoading ? 'Loading programmes…' : 'Select programme'}</option>{legacyProgramme && <option value={assignment.programmeId}>{assignment.programmeName} (saved)</option>}{programmes.filter((item) => !selectedProgrammeIds.includes(String(item.id)) || String(item.id) === String(assignment.programmeId)).map((item) => <option key={item.id} value={item.id}>{item.name}{item.alias ? ` (${item.alias})` : ''}</option>)}</select></label>
       <label>Study year<select required value={assignment.studyYear || ''} onChange={(event) => update({ studyYear: event.target.value ? Number(event.target.value) : '' })}><option value="">Select year</option>{[1, 2, 3, 4, 5, 6].map((year) => <option key={year} value={year}>Year {year}</option>)}</select></label>
     </div>
@@ -144,7 +144,7 @@ export default function PaperReviewEditor({ paper, session, saving, onClose, onS
       ...paper,
       departmentId: paper.departmentId || oldAssignments[0]?.departmentId || '',
       departmentName: paper.departmentName || oldAssignments[0]?.departmentName || '',
-      programmeAssignments: oldAssignments.map((assignment) => ({ programmeId: assignment.programmeId || '', programmeName: assignment.programmeName || '', studyYear: assignment.studyYear || assignment.studyYears?.[0] || '' })),
+      programmeAssignments: oldAssignments.map((assignment) => ({ programmeId: assignment.programmeId || '', programmeName: assignment.programmeName || '', alias: assignment.alias || assignment.programmeAlias || '', programmeAlias: assignment.programmeAlias || assignment.alias || '', studyYear: assignment.studyYear || assignment.studyYears?.[0] || '' })),
       questions: (paper.questions || []).map((question) => ({ ...question, content: question.content || [], subquestions: question.subquestions || [] })),
     }
   })
