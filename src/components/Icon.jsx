@@ -26,6 +26,7 @@ const icons = {
   more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
   trash: <><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></>,
   close: <><path d="m18 6-12 12M6 6l12 12"/></>,
+  menu: <><path d="M4 7h16M4 12h16M4 17h16"/></>,
 }
 
 export default function Icon({ name, size = 19, className = '' }) {

@@ -25,6 +25,11 @@ final class AdminUserRepository
         return $query->fetchAll();
     }
 
+    public function countAll(): int
+    {
+        return (int)$this->pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    }
+
     public function updateFlag(string $id, string $field, bool $value): ?array
     {
         $column = $field === 'role' ? 'role' : 'is_suspended';

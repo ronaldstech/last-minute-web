@@ -23,7 +23,7 @@ final class AdminUserController
         $rows = $this->users->page(trim($request->query('search')), (int)$cursor, $limit);
         $hasMore = count($rows) > $limit;
         if ($hasMore) array_pop($rows);
-        return ['data' => ['users' => array_map([UserSerializer::class, 'public'], $rows), 'nextCursor' => $hasMore ? (string)end($rows)['id'] : null]];
+        return ['data' => ['users' => array_map([UserSerializer::class, 'public'], $rows), 'nextCursor' => $hasMore ? (string)end($rows)['id'] : null, 'totalCount' => $this->users->countAll()]];
     }
 
     public function update(Request $request): array

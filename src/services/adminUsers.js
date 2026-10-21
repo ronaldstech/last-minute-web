@@ -12,11 +12,11 @@ async function request(path, token, { method = 'GET', body } = {}) {
 }
 
 export async function listAdminUsers(token, { search = '', cursor = '' } = {}) {
-  const params = new URLSearchParams({ limit: '40' })
+  const params = new URLSearchParams({ limit: '20' })
   if (search.trim()) params.set('search', search.trim())
   if (cursor) params.set('cursor', cursor)
   const result = await request(`/admin/users?${params}`, token)
-  return { documents: result.users || [], nextPageToken: result.nextCursor || '' }
+  return { documents: result.users || [], nextPageToken: result.nextCursor || '', totalCount: Number(result.totalCount || 0) }
 }
 
 export async function updateAdminUser(token, userId, changes) {
