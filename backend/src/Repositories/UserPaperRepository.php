@@ -14,13 +14,14 @@ final class UserPaperRepository
     {
         $query = $this->pdo->prepare('SELECT p.id, p.title, p.course, p.year, p.semester, p.department_id, p.department_name, p.programme_assignments, p.question_count, p.created_at, p.updated_at, (s.paper_id IS NOT NULL) AS is_saved, (u.paper_id IS NOT NULL) AS is_unlocked, UNIX_TIMESTAMP(DATE_ADD(u.unlocked_at, INTERVAL u.unlock_duration_days DAY)) AS unlock_expires_at FROM papers p LEFT JOIN user_saved_papers s ON s.paper_id = p.id AND s.user_id = ? LEFT JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL u.unlock_duration_days DAY) ORDER BY p.year DESC, p.id DESC LIMIT 1000');
         $query->execute([$userId, $userId]);
-        return array_map(static function (array $row): array {
+        $papers = array_map(static function (array $row): array {
             $paper = AdminPaperRepository::serialize($row);
             $paper['isSaved'] = (bool)$row['is_saved'];
             $paper['isUnlocked'] = (bool)$row['is_unlocked'];
             $paper['unlockExpiresAt'] = $row['unlock_expires_at'] === null ? null : (int)$row['unlock_expires_at'] * 1000;
             return $paper;
         }, $query->fetchAll());
+        return $this->attachProgrammeAliases($papers);
     }
 
     public function findForUser(string $userId, string $paperId): ?array
@@ -56,6 +57,23 @@ final class UserPaperRepository
         $query = $this->pdo->prepare("SELECT id, paper_id AS paperId, paper_title AS paperTitle, paper_course AS course, paper_year AS year, question_number AS questionNumber, max_marks AS maxMarks, score, status, coins_charged AS coinsCharged, error_code AS errorCode, created_at AS createdAt FROM marking_usage_events WHERE user_id = ? AND source_type = 'practice' ORDER BY created_at DESC, id DESC LIMIT 500");
         $query->execute([$userId]);
         return $query->fetchAll();
+    }
+
+    private function attachProgrammeAliases(array $papers): array
+    {
+        if (!$papers) return $papers;
+        $aliases = $this->pdo->query("SELECT id, alias FROM academic_programmes WHERE alias IS NOT NULL AND alias <> ''")->fetchAll(PDO::FETCH_KEY_PAIR);
+        foreach ($papers as &$paper) {
+            foreach ($paper['programmeAssignments'] as &$assignment) {
+                if (!isset($assignment['alias']) && !isset($assignment['programmeAlias'])) {
+                    $alias = $aliases[$assignment['programmeId'] ?? ''] ?? null;
+                    if ($alias) $assignment['alias'] = $alias;
+                }
+            }
+            unset($assignment);
+        }
+        unset($paper);
+        return $papers;
     }
 
     public function setSaved(string $userId, string $paperId, bool $saved): void
