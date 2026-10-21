@@ -9,7 +9,7 @@ The admin question-image upload route stores images in `public/uploads/question-
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. Configure database credentials in `config.php` (copy `config.php.example`) or use `.env` for local development. PHP environment variables still take precedence when the host provides them.
 3. Import `schema.sql` from phpMyAdmin.
-   For a database created from an earlier schema, run all migrations through `migrations/018_add_paper_unlock_history.sql` once, in order. Migration 017 promotes the earliest existing administrator to super administrator; migration 018 enables per-unlock account history and analytics.
+   For a database created from an earlier schema, run all migrations through `migrations/019_add_coin_pricing_settings.sql` once, in order. Migration 017 promotes the earliest existing administrator to super administrator; migration 018 enables per-unlock account history and analytics; migration 019 creates app configuration and coin-pricing settings required by the admin configuration and paper-unlock endpoints.
 4. Ensure Apache has `AllowOverride All` and `mod_rewrite` enabled.
 5. Start Vite in the project workspace. Its `/backend/*` proxy sends API requests to XAMPP Apache.
 
