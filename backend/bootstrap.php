@@ -99,6 +99,8 @@ function last_minute_router(): Router
     $router->add('POST', '/wallet/transactions', $walletEndpoint('createTransaction'));
     $router->add('POST', '/wallet/transactions/verify', $walletEndpoint('verifyTransaction'));
     $router->add('GET', '/groups', $groupEndpoint('index'));
+    $router->add('GET', '/admin/groups', $groupEndpoint('adminIndex'));
+    $router->add('GET', '/admin/groups/details', $groupEndpoint('adminDetails'));
     $router->add('POST', '/groups', $groupEndpoint('create'));
     $router->add('GET', '/groups/invitations', $groupEndpoint('invitations'));
     $router->add('POST', '/groups/invitations', $groupEndpoint('invite'));

@@ -28,6 +28,39 @@ final class StudyGroupRepository
         return $groups;
     }
 
+    public function adminGroups(): array
+    {
+        $statement = $this->pdo->query('SELECT g.id, g.name, g.course, g.description, g.owner_id AS ownerId, u.username AS ownerName, g.created_at AS createdAt, COUNT(m.user_id) AS memberCount FROM study_groups g JOIN users u ON u.id = g.owner_id LEFT JOIN study_group_members m ON m.group_id = g.id GROUP BY g.id, g.name, g.course, g.description, g.owner_id, u.username, g.created_at ORDER BY g.created_at DESC');
+        $rows = $statement->fetchAll();
+        foreach ($rows as &$row) {
+            $row['id'] = (string)$row['id'];
+            $row['ownerId'] = (string)$row['ownerId'];
+            $row['memberCount'] = (int)$row['memberCount'];
+        }
+        unset($row);
+        return $rows;
+    }
+
+    public function adminGroupDetails(string $groupId): array
+    {
+        $groupQuery = $this->pdo->prepare('SELECT g.id, g.name, g.course, g.description, g.owner_id AS ownerId, u.username AS ownerName, u.email AS ownerEmail, g.created_at AS createdAt FROM study_groups g JOIN users u ON u.id = g.owner_id WHERE g.id = ? LIMIT 1');
+        $groupQuery->execute([$groupId]);
+        $group = $groupQuery->fetch();
+        if (!$group) throw new \\DomainException('This study group could not be found.');
+        $memberQuery = $this->pdo->prepare('SELECT u.id, u.username, u.email, m.joined_at AS joinedAt FROM study_group_members m JOIN users u ON u.id = m.user_id WHERE m.group_id = ? ORDER BY m.joined_at, u.username');
+        $memberQuery->execute([$groupId]);
+        $group['id'] = (string)$group['id'];
+        $group['ownerId'] = (string)$group['ownerId'];
+        $group['createdAt'] = date(DATE_ATOM, strtotime($group['createdAt']));
+        $group['members'] = array_map(static function (array $member): array {
+            $member['id'] = (string)$member['id'];
+            $member['joinedAt'] = date(DATE_ATOM, strtotime($member['joinedAt']));
+            return $member;
+        }, $memberQuery->fetchAll());
+        $group['memberCount'] = count($group['members']);
+        return $group;
+    }
+
     public function create(string $userId, string $name, string $course, string $description): array
     {
         $this->pdo->beginTransaction();

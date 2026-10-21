@@ -66,6 +66,8 @@ Errors use `{ "message": "..." }` JSON.
 | `POST` | `/backend/public/wallet/transactions/verify` | Bearer token | Verify `{ "chargeId" }` with the payment service and credit the authenticated user's MySQL balance once after payment succeeds. |
 | `GET` / `POST` | `/backend/public/groups` | Bearer token | List the current user's groups or create `{ "name", "course", "description" }`; the creator becomes the first member. |
 | `GET` | `/backend/public/groups/invitations` | Bearer token | List pending invitations for the current account. |
+| `GET` | `/backend/public/admin/groups` | Administrator bearer token | List study groups with creator and member counts. |
+| `GET` | `/backend/public/admin/groups/details?groupId={id}` | Administrator bearer token | Read one group's details and member profiles. |
 | `POST` | `/backend/public/groups/invitations` | Group owner bearer token | Invite an existing account by username with `{ "groupId", "username" }`. |
 | `GET` | `/backend/public/groups/users?q=...` | Bearer token | Find up to eight accounts by username prefix/substring. |
 | `POST` | `/backend/public/groups/invite-link` | Group owner bearer token | Create a shareable link token with `{ "groupId" }`. |

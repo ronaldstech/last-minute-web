@@ -20,6 +20,21 @@ final class StudyGroupController
         return ['data' => ['groups' => $this->groups->groups((string)$user['id'])]];
     }
 
+    public function adminIndex(Request $request): array
+    {
+        $user = $this->authenticate->user($request);
+        if (empty($user['isAdmin'])) throw new ApiException('Administrator access is required.', 403);
+        return ['data' => ['groups' => $this->groups->adminGroups()]];
+    }
+
+    public function adminDetails(Request $request): array
+    {
+        $user = $this->authenticate->user($request);
+        if (empty($user['isAdmin'])) throw new ApiException('Administrator access is required.', 403);
+        $groupId = $this->id($request->query('groupId'), 'group');
+        return ['data' => ['group' => $this->domain(fn() => $this->groups->adminGroupDetails($groupId))]];
+    }
+
     public function invitations(Request $request): array
     {
         $user = $this->authenticate->user($request);
