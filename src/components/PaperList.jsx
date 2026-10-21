@@ -7,7 +7,7 @@ export default function PaperList({ papers, savedIds = [], onOpen, onToggleSaved
     return <div className="empty-panel"><span className="empty-icon"><Icon name="file" size={24} /></span><h3>No papers found</h3><p>Try another search or choose a different module.</p></div>
   }
 
-  if (layout === 'table') return <div className="paper-table-wrap"><table className="paper-table"><thead><tr><th>Paper</th><th className="paper-table-col-department">Department</th><th className="paper-table-col-programmes">Programmes</th><th>Year</th><th className="paper-table-col-semester">Semester</th><th className="paper-table-col-questions">Questions</th><th>Access</th><th>Actions</th></tr></thead><tbody>
+  if (layout === 'table') return <div className="paper-table-wrap"><table className="paper-table"><thead><tr><th>Paper</th><th className="paper-table-col-department">Department</th><th className="paper-table-col-programmes">Programmes</th><th>Year</th><th className="paper-table-col-semester">Semester</th><th className="paper-table-col-questions">Questions</th><th className="paper-table-col-access">Access</th><th>Actions</th></tr></thead><tbody>
     {papers.map((paper) => {
       const isSaved = savedIds.includes(paper.id)
       const dailyUnlockCost = Number.isFinite(Number(paper.unlockPricing?.daily)) ? Number(paper.unlockPricing.daily) : 20
@@ -21,7 +21,7 @@ export default function PaperList({ papers, savedIds = [], onOpen, onToggleSaved
         <td><span className="paper-table-year">{paper.year || '—'}</span></td>
         <td className="paper-table-col-semester">{paper.semester ? `Semester ${paper.semester}` : '—'}</td>
         <td className="paper-table-col-questions">{questionCount || '—'}</td>
-        <td><span className={`paper-table-access ${paper.isUnlocked ? 'is-unlocked' : ''}`} aria-label={paper.isUnlocked ? 'Unlocked' : `Locked, costs ${dailyUnlockCost.toLocaleString()} coins to unlock`}>{paper.isUnlocked ? <><Icon name="check" size={13}/> Unlocked</> : <><Icon name="lock" size={13}/>{dailyUnlockCost.toLocaleString()} coins</>}</span></td>
+        <td className="paper-table-col-access"><span className={`paper-table-access ${paper.isUnlocked ? 'is-unlocked' : ''}`} aria-label={paper.isUnlocked ? 'Unlocked' : `Locked, costs ${dailyUnlockCost.toLocaleString()} coins to unlock`}>{paper.isUnlocked ? <><Icon name="check" size={13}/> Unlocked</> : <><Icon name="lock" size={13}/>{dailyUnlockCost.toLocaleString()} coins</>}</span></td>
         <td><div className="paper-table-actions">{showSave && <button type="button" className={`save-button ${isSaved ? 'is-saved' : ''}`} aria-label={isSaved ? 'Remove saved paper' : 'Save paper'} aria-pressed={isSaved} onClick={() => onToggleSaved(paper.id)}><Icon name="bookmark" size={16}/></button>}<button className="paper-table-view" type="button" aria-label={`Open ${paper.course || paper.subject || paper.title || 'question paper'}`} onClick={() => onOpen(paper)}>Open <Icon name="right" size={14}/></button></div></td>
       </tr>
     })}
