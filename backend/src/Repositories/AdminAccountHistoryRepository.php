@@ -24,12 +24,13 @@ final class AdminAccountHistoryRepository
         unset($user);
 
         $unlockEvents = $this->pdo->query("SELECT CONCAT('unlock-', e.id) AS id, 'paper_unlock' AS action, u.id AS userId, u.username, u.email, p.id AS paperId, p.title AS paperTitle, p.course, e.free_coins_spent AS freeCoinsSpent, e.purchased_coins_spent AS purchasedCoinsSpent, NULL AS amountMwk, e.unlocked_at AS createdAt FROM user_paper_unlock_events e JOIN users u ON u.id = e.user_id JOIN papers p ON p.id = e.paper_id ORDER BY e.unlocked_at DESC, e.id DESC LIMIT 100")->fetchAll();
-        $topUpEvents = $this->pdo->query("SELECT CONCAT('topup-', t.charge_id) AS id, 'coin_top_up' AS action, u.id AS userId, u.username, u.email, NULL AS paperId, t.operator_name AS paperTitle, 0 AS freeCoinsSpent, 0 AS purchasedCoinsSpent, t.amount_mwk AS amountMwk, t.created_at AS createdAt FROM wallet_transactions t JOIN users u ON u.id = t.user_id WHERE t.status = 'paid' AND t.credited = 1 ORDER BY t.created_at DESC LIMIT 100")->fetchAll();
+        $topUpEvents = $this->pdo->query("SELECT CONCAT('topup-', t.charge_id) AS id, 'coin_top_up' AS action, t.status, t.failure_reason AS failureReason, u.id AS userId, u.username, u.email, NULL AS paperId, t.operator_name AS paperTitle, 0 AS freeCoinsSpent, 0 AS purchasedCoinsSpent, t.amount_mwk AS amountMwk, t.created_at AS createdAt FROM wallet_transactions t JOIN users u ON u.id = t.user_id WHERE (t.status = 'paid' AND t.credited = 1) OR t.status = 'failed' ORDER BY t.created_at DESC LIMIT 100")->fetchAll();
         $events = array_merge($unlockEvents, $topUpEvents);
         usort($events, static fn(array $left, array $right): int => strcmp((string)$right['createdAt'], (string)$left['createdAt']));
         $events = array_slice($events, 0, 100);
         foreach ($events as &$event) {
             $event['userId'] = (string)$event['userId'];
+            if ($event['action'] === 'paper_unlock') $event['status'] = 'successful';
             foreach (['freeCoinsSpent', 'purchasedCoinsSpent', 'amountMwk'] as $field) $event[$field] = $event[$field] === null ? null : (int)$event[$field];
         }
         unset($event);

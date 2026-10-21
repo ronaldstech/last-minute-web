@@ -130,7 +130,28 @@
 .account-analytics-tabs button b{min-width:23px;padding:3px 6px;border-radius:99px;background:#eaf3ec;color:#568064;font-size:10px;text-align:center}
 .account-analytics-panel[hidden]{display:none}
 .account-analytics-panel .admin-section-title.sub{margin-top:0}
-.latest-activity-table{min-width:900px}
+.latest-activity-table{min-width:1120px}
 .latest-activity-table td:last-child{min-width:205px;white-space:normal}
+.coin-usage-label{display:inline-block;padding:4px 7px;border-radius:7px;background:#f2f4f5;color:#829087;font-size:10px;font-weight:700;white-space:nowrap}
+.coin-usage-label.used{background:#edf8f1;color:#34835d}
 .account-activity-table td:nth-child(7){min-width:200px;white-space:normal}
+.academic-directory-wrap{margin-top:2px;box-shadow:0 5px 17px #233a2c07}
+.academic-directory-table{min-width:760px}
+.academic-directory-table th:last-child{min-width:290px}
+.academic-directory-table td{height:53px}
+.academic-directory-table .academic-directory-college{background:#fbfdfb}
+.academic-directory-table .academic-directory-college td{border-top-color:#e5ede7}
+.academic-directory-table .academic-directory-college td:first-child strong{display:flex;align-items:center;gap:9px;color:#304b39;font-size:13px}
+.academic-directory-table .academic-directory-college td:first-child svg{color:#47815b}
+.academic-directory-table .academic-directory-school td:first-child{padding-left:36px}
+.academic-directory-table .academic-directory-school td:first-child strong:before{content:'↳';margin-right:8px;color:#9aaa9e}
+.academic-directory-table .academic-directory-department td:first-child{padding-left:62px}
+.academic-directory-table .academic-directory-department td:first-child strong:before{content:'↳';margin-right:8px;color:#9aaa9e}
+.academic-directory-table .academic-directory-programme td:first-child{padding-left:88px}
+.academic-directory-table .academic-directory-programme td:first-child strong:before{content:'↳';margin-right:8px;color:#9aaa9e}
+.academic-directory-actions{display:flex;align-items:center;gap:7px}
+.academic-directory-actions button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:31px;padding:0 9px;border:1px solid #dfe9e2;border-radius:8px;background:#fff;color:#557361;font:inherit;font-size:10px;font-weight:700;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.academic-directory-actions button:hover{border-color:#bcd8c5;background:#f2faf4;color:#28734a}
+.academic-directory-actions .academic-add-button{border-color:#d4e8da;background:#f3faf5;color:#34744f}
+@media(max-width:700px){.academic-directory-table{min-width:760px}.academic-directory-table td{height:48px}.academic-directory-table .academic-directory-school td:first-child{padding-left:27px}.academic-directory-table .academic-directory-department td:first-child{padding-left:46px}.academic-directory-table .academic-directory-programme td:first-child{padding-left:65px}.academic-directory-actions{gap:5px}.academic-directory-actions button{padding:0 7px;font-size:9px}}
 @media(max-width:460px){.account-analytics-tabs{gap:3px}.account-analytics-tabs button{gap:5px;min-height:42px;padding:0 5px;font-size:10px}.account-analytics-tabs button svg{width:14px;height:14px}.account-analytics-tabs button b{min-width:19px;padding:2px 4px;font-size:9px}}
