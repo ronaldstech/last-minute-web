@@ -12,7 +12,7 @@ final class UserPaperRepository
 
     public function listForUser(string $userId): array
     {
-        $query = $this->pdo->prepare('SELECT p.id, p.title, p.course, p.year, p.semester, p.department_id, p.department_name, p.programme_assignments, p.question_count, p.created_at, p.updated_at, (s.paper_id IS NOT NULL) AS is_saved, (u.paper_id IS NOT NULL) AS is_unlocked, UNIX_TIMESTAMP(DATE_ADD(u.unlocked_at, INTERVAL 24 HOUR)) AS unlock_expires_at FROM papers p LEFT JOIN user_saved_papers s ON s.paper_id = p.id AND s.user_id = ? LEFT JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 24 HOUR) ORDER BY p.year DESC, p.id DESC LIMIT 1000');
+        $query = $this->pdo->prepare('SELECT p.id, p.title, p.course, p.year, p.semester, p.department_id, p.department_name, p.programme_assignments, p.question_count, p.created_at, p.updated_at, (s.paper_id IS NOT NULL) AS is_saved, (u.paper_id IS NOT NULL) AS is_unlocked, UNIX_TIMESTAMP(DATE_ADD(u.unlocked_at, INTERVAL u.unlock_duration_days DAY)) AS unlock_expires_at FROM papers p LEFT JOIN user_saved_papers s ON s.paper_id = p.id AND s.user_id = ? LEFT JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL u.unlock_duration_days DAY) ORDER BY p.year DESC, p.id DESC LIMIT 1000');
         $query->execute([$userId, $userId]);
         return array_map(static function (array $row): array {
             $paper = AdminPaperRepository::serialize($row);
@@ -25,7 +25,7 @@ final class UserPaperRepository
 
     public function findForUser(string $userId, string $paperId): ?array
     {
-        $query = $this->pdo->prepare('SELECT p.id, p.title, p.course, p.year, p.semester, p.department_id, p.department_name, p.questions, p.programme_assignments, p.question_count, p.created_at, p.updated_at, (s.paper_id IS NOT NULL) AS is_saved, (u.paper_id IS NOT NULL) AS is_unlocked, UNIX_TIMESTAMP(DATE_ADD(u.unlocked_at, INTERVAL 24 HOUR)) AS unlock_expires_at FROM papers p LEFT JOIN user_saved_papers s ON s.paper_id = p.id AND s.user_id = ? LEFT JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 24 HOUR) WHERE p.id = ? LIMIT 1');
+        $query = $this->pdo->prepare('SELECT p.id, p.title, p.course, p.year, p.semester, p.department_id, p.department_name, p.questions, p.programme_assignments, p.question_count, p.created_at, p.updated_at, (s.paper_id IS NOT NULL) AS is_saved, (u.paper_id IS NOT NULL) AS is_unlocked, UNIX_TIMESTAMP(DATE_ADD(u.unlocked_at, INTERVAL u.unlock_duration_days DAY)) AS unlock_expires_at FROM papers p LEFT JOIN user_saved_papers s ON s.paper_id = p.id AND s.user_id = ? LEFT JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL u.unlock_duration_days DAY) WHERE p.id = ? LIMIT 1');
         $query->execute([$userId, $userId, $paperId]);
         $row = $query->fetch();
         if (!$row) return null;
@@ -46,7 +46,7 @@ final class UserPaperRepository
 
     public function history(string $userId): array
     {
-        $query = $this->pdo->prepare('SELECT e.id, e.paper_id AS paperId, p.title AS paperTitle, p.course, p.year, e.free_coins_spent AS freeCoinsSpent, e.purchased_coins_spent AS purchasedCoinsSpent, e.unlocked_at AS createdAt, DATE_ADD(e.unlocked_at, INTERVAL 24 HOUR) AS expiresAt FROM user_paper_unlock_events e JOIN papers p ON p.id = e.paper_id WHERE e.user_id = ? ORDER BY e.unlocked_at DESC, e.id DESC LIMIT 500');
+        $query = $this->pdo->prepare('SELECT e.id, e.paper_id AS paperId, p.title AS paperTitle, p.course, p.year, e.free_coins_spent AS freeCoinsSpent, e.purchased_coins_spent AS purchasedCoinsSpent, e.unlocked_at AS createdAt, DATE_ADD(e.unlocked_at, INTERVAL e.unlock_duration_days DAY) AS expiresAt FROM user_paper_unlock_events e JOIN papers p ON p.id = e.paper_id WHERE e.user_id = ? ORDER BY e.unlocked_at DESC, e.id DESC LIMIT 500');
         $query->execute([$userId]);
         return $query->fetchAll();
     }
@@ -62,8 +62,8 @@ final class UserPaperRepository
         $query->execute([$userId, $paperId]);
     }
 
-    /** Charge free coins first, then purchased coins for each 24-hour access period. */
-    public function unlock(string $userId, string $paperId, int $cost): array
+    /** Charge free coins first, then purchased coins for the selected access period. */
+    public function unlock(string $userId, string $paperId, int $cost, int $durationDays): array
     {
         $this->pdo->beginTransaction();
         try {
@@ -74,7 +74,7 @@ final class UserPaperRepository
                 return ['paperFound' => false, 'alreadyUnlocked' => false, 'affordable' => false];
             }
 
-            $existing = $this->pdo->prepare('SELECT paper_id, (unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 24 HOUR)) AS is_active FROM user_paper_unlocks WHERE user_id = ? AND paper_id = ? LIMIT 1');
+            $existing = $this->pdo->prepare('SELECT paper_id, (unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL unlock_duration_days DAY)) AS is_active FROM user_paper_unlocks WHERE user_id = ? AND paper_id = ? LIMIT 1');
             $existing->execute([$userId, $paperId]);
             $existingUnlock = $existing->fetch();
             $alreadyUnlocked = $existingUnlock && (bool)$existingUnlock['is_active'];
@@ -97,14 +97,14 @@ final class UserPaperRepository
                 $charge = $this->pdo->prepare('UPDATE users SET free_coin_balance = free_coin_balance - ?, coin_balance = coin_balance - ? WHERE id = ?');
                 $charge->execute([$freeSpent, $purchasedSpent, $userId]);
                 if ($existingUnlock) {
-                    $record = $this->pdo->prepare('UPDATE user_paper_unlocks SET free_coins_spent = free_coins_spent + ?, purchased_coins_spent = purchased_coins_spent + ?, unlocked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND paper_id = ?');
-                    $record->execute([$freeSpent, $purchasedSpent, $userId, $paperId]);
+                    $record = $this->pdo->prepare('UPDATE user_paper_unlocks SET free_coins_spent = free_coins_spent + ?, purchased_coins_spent = purchased_coins_spent + ?, unlock_duration_days = ?, unlocked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND paper_id = ?');
+                    $record->execute([$freeSpent, $purchasedSpent, $durationDays, $userId, $paperId]);
                 } else {
-                    $record = $this->pdo->prepare('INSERT INTO user_paper_unlocks (user_id, paper_id, free_coins_spent, purchased_coins_spent) VALUES (?, ?, ?, ?)');
-                    $record->execute([$userId, $paperId, $freeSpent, $purchasedSpent]);
+                    $record = $this->pdo->prepare('INSERT INTO user_paper_unlocks (user_id, paper_id, free_coins_spent, purchased_coins_spent, unlock_duration_days) VALUES (?, ?, ?, ?, ?)');
+                    $record->execute([$userId, $paperId, $freeSpent, $purchasedSpent, $durationDays]);
                 }
-                $event = $this->pdo->prepare('INSERT INTO user_paper_unlock_events (user_id, paper_id, free_coins_spent, purchased_coins_spent) VALUES (?, ?, ?, ?)');
-                $event->execute([$userId, $paperId, $freeSpent, $purchasedSpent]);
+                $event = $this->pdo->prepare('INSERT INTO user_paper_unlock_events (user_id, paper_id, free_coins_spent, purchased_coins_spent, unlock_duration_days) VALUES (?, ?, ?, ?, ?)');
+                $event->execute([$userId, $paperId, $freeSpent, $purchasedSpent, $durationDays]);
                 $balances['free_coin_balance'] = (int)$balances['free_coin_balance'] - $freeSpent;
                 $balances['coin_balance'] = (int)$balances['coin_balance'] - $purchasedSpent;
             }
