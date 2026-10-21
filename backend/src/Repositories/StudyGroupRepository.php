@@ -46,7 +46,7 @@ final class StudyGroupRepository
         $groupQuery = $this->pdo->prepare('SELECT g.id, g.name, g.course, g.description, g.owner_id AS ownerId, u.username AS ownerName, u.email AS ownerEmail, g.created_at AS createdAt FROM study_groups g JOIN users u ON u.id = g.owner_id WHERE g.id = ? LIMIT 1');
         $groupQuery->execute([$groupId]);
         $group = $groupQuery->fetch();
-        if (!$group) throw new \\DomainException('This study group could not be found.');
+        if (!$group) throw new \DomainException('This study group could not be found.');
         $memberQuery = $this->pdo->prepare('SELECT u.id, u.username, u.email, m.joined_at AS joinedAt FROM study_group_members m JOIN users u ON u.id = m.user_id WHERE m.group_id = ? ORDER BY m.joined_at, u.username');
         $memberQuery->execute([$groupId]);
         $group['id'] = (string)$group['id'];
