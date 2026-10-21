@@ -33,9 +33,10 @@ final class UserPaperController
     {
         $user = $this->authenticate->user($request);
         try {
-            return ['data' => ['unlocks' => $this->papers->history($user['id'])]];
+            return ['data' => ['unlocks' => $this->papers->history($user['id']), 'marking' => $this->papers->markingHistory($user['id'])]];
         } catch (PDOException $error) {
-            if ($error->getCode() === '42S02') throw new ApiException('Account history needs database migration 018_add_paper_unlock_history.sql.', 503);
+            if ($error->getCode() === '42S02') throw new ApiException('Account history needs migrations 010_add_marking_usage_events.sql and 018_add_paper_unlock_history.sql.', 503);
+            if ($error->getCode() === '42S22') throw new ApiException('Account marking history needs migration 019_add_coin_pricing_settings.sql.', 503);
             throw $error;
         }
     }

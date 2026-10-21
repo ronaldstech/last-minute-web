@@ -51,6 +51,13 @@ final class UserPaperRepository
         return $query->fetchAll();
     }
 
+    public function markingHistory(string $userId): array
+    {
+        $query = $this->pdo->prepare("SELECT id, paper_id AS paperId, paper_title AS paperTitle, paper_course AS course, paper_year AS year, question_number AS questionNumber, max_marks AS maxMarks, score, status, coins_charged AS coinsCharged, error_code AS errorCode, created_at AS createdAt FROM marking_usage_events WHERE user_id = ? AND source_type = 'practice' ORDER BY created_at DESC, id DESC LIMIT 500");
+        $query->execute([$userId]);
+        return $query->fetchAll();
+    }
+
     public function setSaved(string $userId, string $paperId, bool $saved): void
     {
         if ($saved) {

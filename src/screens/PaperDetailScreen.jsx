@@ -6,6 +6,7 @@ import PracticeMode from './PracticeMode.jsx'
 import { hasAnswerablePrompt } from '../utils/paperQuestions.js'
 import { decodeTableAnswer, encodeTableAnswer, hasPracticeAnswerContent, practiceAnswerText } from '../utils/practiceAnswers.js'
 import './PaperDetailScreen.css'
+import './PaperInformation.css'
 
 function ContentBlock({ block }) {
   if (!block || typeof block !== 'object') return null
@@ -24,7 +25,40 @@ function QuestionImages({ images = [] }) {
   return <div className="paper-question-images">{images.map((image, index) => { const url = typeof image === 'string' ? image : image.url || image.path; return url ? <figure key={`${url}-${index}`}><img src={url} alt={image.name || image.caption || 'Question attachment'}/>{image.caption && <figcaption>{image.caption}</figcaption>}</figure> : null })}</div>
 }
 
-function PracticeAnswerField({ answerKey, answer, submission, submitting, error, onChange, onSubmit }) {
+function paperDate(value) {
+  if (!value) return ''
+  const date = new Date(typeof value === 'string' ? value.replace(' ', 'T') : value)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function PaperInformation({ paper }) {
+  const assignments = Array.isArray(paper.programmeAssignments) ? paper.programmeAssignments.filter((assignment) => assignment && typeof assignment === 'object') : []
+  const department = paper.departmentName || assignments.find((assignment) => assignment?.departmentName)?.departmentName
+  const questions = Number(paper.questionCount || paper.questions?.length || 0)
+  const details = [
+    ['Paper title', paper.title],
+    ['Course', paper.course],
+    ['Department', department || 'Not specified'],
+    ['Exam year', paper.year],
+    ['Semester', paper.semester ? `Semester ${paper.semester}` : ''],
+    ['Questions', `${questions} ${questions === 1 ? 'question' : 'questions'}`],
+    ['Paper ID', paper.id],
+    ['Added', paperDate(paper.createdAt)],
+    ['Last updated', paperDate(paper.updatedAt)],
+  ].filter(([, value]) => value !== null && value !== undefined && value !== '')
+
+  return <section className="paper-information" aria-labelledby="paper-information-title">
+    <header className="paper-information-heading"><div><span>ACADEMIC DETAILS</span><h2 id="paper-information-title">Paper information</h2></div></header>
+    <dl className="paper-metadata-grid">{details.map(([label, value]) => <div className="paper-metadata-item" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    <div className="paper-programmes">
+      <h3>Assigned programmes <span>{assignments.length}</span></h3>
+      {assignments.length ? <ul>{assignments.map((assignment, index) => <li key={`${assignment.programmeId || assignment.programmeName || 'programme'}-${assignment.studyYear || 'year'}-${index}`}><strong>{assignment.programmeName || 'Programme'}</strong><small>{assignment.studyYear ? `Year ${assignment.studyYear}` : 'All study years'}</small>{assignment.departmentName && assignment.departmentName !== department && <small>{assignment.departmentName}</small>}</li>)}</ul>
+        : <p>No programme assignments have been set for this paper.</p>}
+    </div>
+  </section>
+}
+
+function PracticeAnswerField({ answerKey, answer, submission, submitting, error, onChange, onSubmit, markingCost }) {
   const inputId = `practice-answer-${answerKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`
   const table = decodeTableAnswer(answer)
   const updateTable = (changes) => onChange(answerKey, encodeTableAnswer({ ...table, ...changes }))
@@ -40,7 +74,7 @@ function PracticeAnswerField({ answerKey, answer, submission, submitting, error,
     <div className="practice-answer-toolbar"><strong>Your answer</strong><div className="practice-answer-modes" role="group" aria-label="Answer format"><button type="button" className={!table ? 'is-active' : ''} aria-pressed={!table} disabled={submitting} onClick={selectText}>Text</button><button type="button" className={table ? 'is-active' : ''} aria-pressed={Boolean(table)} disabled={submitting} onClick={selectTable}>Table</button></div></div>
     {table ? <div className="practice-table-editor"><div className="practice-table-scroll"><table><thead><tr>{table.columns.map((column, columnIndex) => <th key={columnIndex}><input aria-label={`Table column ${columnIndex + 1}`} value={column} disabled={submitting} onChange={(event) => updateColumn(columnIndex, event.target.value)} placeholder={`Column ${columnIndex + 1}`}/></th>)}</tr></thead><tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{table.columns.map((_, columnIndex) => <td key={columnIndex}><input aria-label={`Row ${rowIndex + 1}, column ${columnIndex + 1}`} value={row[columnIndex] || ''} disabled={submitting} onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)} placeholder="Enter detail"/></td>)}</tr>)}</tbody></table></div><div className="practice-table-actions"><button type="button" disabled={submitting} onClick={addRow}>+ Add row</button><button type="button" disabled={submitting} onClick={addColumn}>+ Add column</button></div></div> : <textarea id={inputId} value={answer || ''} disabled={submitting} onChange={(event) => onChange(answerKey, event.target.value)} placeholder="Write your answer here…" rows={4}/>}
     <div className="practice-submit-row">
-      <button className="practice-submit" type="button" disabled={submitting || !hasPracticeAnswerContent(answer)} onClick={() => onSubmit(answerKey)}><Icon name={submitting ? 'clock' : 'spark'} size={14}/>{submitting ? 'Submitting…' : submission ? 'Submit again' : 'Submit for marking'}</button>
+      <button className="practice-submit" type="button" disabled={submitting || !hasPracticeAnswerContent(answer)} onClick={() => onSubmit(answerKey)}><Icon name={submitting ? 'clock' : 'spark'} size={14}/>{submitting ? 'Submitting…' : submission ? 'Submit again' : 'Submit for marking'} · −{Number(markingCost || 0).toLocaleString()} coins</button>
       {submission && <span className="practice-submit-status"><Icon name="check" size={13}/>{submission.marking ? `Marked ${submission.marking.score} / ${submission.marking.maxMarks}` : `Submitted · ${submission.status === 'pending' ? 'awaiting marking' : submission.status}`}</span>}
       {error && <span className="practice-submit-error" role="alert">{error}</span>}
     </div>
@@ -48,19 +82,19 @@ function PracticeAnswerField({ answerKey, answer, submission, submitting, error,
   </div>
 }
 
-function Subquestions({ items = [], depth = 0, parentKey = '', answers = {}, submissions = {}, submitting = {}, errors = {}, onPracticeAnswer, onPracticeSubmit }) {
+function Subquestions({ items = [], depth = 0, parentKey = '', answers = {}, submissions = {}, submitting = {}, errors = {}, onPracticeAnswer, onPracticeSubmit, markingCost }) {
   if (!items.length) return null
   return <div className="paper-detail-subquestions" style={{ '--question-depth': depth }}>
     {items.map((item, index) => {
       const answerKey = `${parentKey}.${item.id || index}`
       return <article className="paper-detail-subquestion" key={item.id || `${depth}-${index}`}><div className="paper-detail-subquestion-heading"><strong>{item.number || String.fromCharCode(97 + index)}.</strong><span>{item.text}</span>{item.marks !== null && item.marks !== undefined && <small>[{item.marks} marks]</small>}</div>{Array.isArray(item.content) && item.content.length > 0 && <div className="paper-detail-question-content">{item.content.map((block, blockIndex) => <ContentBlock key={`${item.id || index}-${blockIndex}`} block={block}/>)}</div>}<QuestionImages images={item.images || []}/>
-        {onPracticeAnswer && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/></div>}
-        <Subquestions items={item.subquestions || []} depth={depth + 1} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit}/></article>
+        {onPracticeAnswer && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit} markingCost={markingCost}/></div>}
+        <Subquestions items={item.subquestions || []} depth={depth + 1} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit} markingCost={markingCost}/></article>
     })}
   </div>
 }
 
-export function PaperQuestion({ question, index, answers, submissions, submitting, errors, onPracticeAnswer, onPracticeSubmit }) {
+export function PaperQuestion({ question, index, answers, submissions, submitting, errors, onPracticeAnswer, onPracticeSubmit, markingCost }) {
   const content = Array.isArray(question.content) ? question.content : []
   const questionNumber = question.number ?? index + 1
   const answerKey = String(question.id || index)
@@ -69,8 +103,8 @@ export function PaperQuestion({ question, index, answers, submissions, submittin
     {content.length ? <div className="paper-detail-question-content">{content.map((block, blockIndex) => <ContentBlock key={`${question.id || index}-${blockIndex}`} block={block}/>)}</div> : question.text ? <p className="paper-detail-question-text">{question.text}</p> : null}
     <QuestionImages images={question.images || []}/>
     {question.assets?.length > 0 && <ul className="paper-detail-assets">{question.assets.map((asset, assetIndex) => { const path = typeof asset === 'string' ? asset : asset.path || asset.url || asset.name || 'Attached file'; return <li key={`${path}-${assetIndex}`}>{asset.caption || asset.name || path}</li> })}</ul>}
-    {onPracticeAnswer && hasPrompt && <PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit}/>}
-    <Subquestions items={question.subquestions || []} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit}/>
+    {onPracticeAnswer && hasPrompt && <PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit} markingCost={markingCost}/>}
+    <Subquestions items={question.subquestions || []} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit} markingCost={markingCost}/>
   </article>
 }
 
@@ -131,7 +165,8 @@ export default function PaperDetailScreen({ paper, activeTab, balance, session, 
     <button className="back-link" onClick={onBack}>← Back to {activeTab.toLowerCase()}</button>
     <div className="paper-detail-topline"><span className={`paper-subject ${paper.tone}-text`}>{paper.subject}</span><div className="paper-detail-actions">{onShare && <button className="paper-detail-save" onClick={onShare}><Icon name="share" size={15}/>Share</button>}{onReport && <button className="paper-detail-save" onClick={() => { setReportError(''); setReportOpen(true) }}><Icon name="bell" size={15}/>Report issue</button>}{onToggleSaved && <button className={`paper-detail-save ${saved ? 'is-saved' : ''}`} onClick={onToggleSaved}><Icon name="bookmark" size={15}/>{saved ? 'Saved' : 'Save paper'}</button>}</div></div>
     <h1>{paper.course || paper.title || 'Question paper'}</h1>
-    <p>{[paper.title, paper.year, paper.semester ? `Semester ${paper.semester}` : '', paper.departmentName, `${Number(paper.questionCount || paper.questions?.length || 0)} questions`].filter(Boolean).join(' | ')}</p>
+    <p>{[paper.title !== paper.course ? paper.title : '', paper.year ? `Exam year ${paper.year}` : '', paper.semester ? `Semester ${paper.semester}` : ''].filter(Boolean).join(' | ')}</p>
+    {!loading && !paper.detailLoading && !paper.detailError && <PaperInformation paper={paper}/>}
     <section className="paper-reported-issues"><div className="paper-reported-issues-heading"><div><span>COMMUNITY REPORTS</span><h2>Reported issues <b>{paperReports.length}</b></h2></div></div>{loadingPaperReports ? <p className="paper-reported-issues-state">Loading reported issues...</p> : paperReportsError ? <p className="paper-reported-issues-state error" role="alert">{paperReportsError}</p> : paperReports.length ? <div className="paper-reported-issues-list">{paperReports.map((report) => <article key={report.id}><header><strong>{report.category || 'Other issue'}</strong><span className={`paper-report-status ${report.status || 'open'}`}>{(report.status || 'open').replace(/^./, (letter) => letter.toUpperCase())}</span></header><p>{report.details || 'No additional details.'}</p><small>{report.createdAt ? new Date(report.createdAt).toLocaleDateString() : 'Date unavailable'}</small></article>)}</div> : <p className="paper-reported-issues-state">No issues have been reported for this paper.</p>}</section>
     {loading || paper.detailLoading ? <div className="paper-detail-state"><span className="notification-spinner"/>Loading paper details...</div> : paper.detailError ? <div className="paper-detail-state paper-detail-error" role="alert">{paper.detailError}<button onClick={onRetry}>Try again</button></div> : paper.isUnlocked ? <><div className="paper-unlock-summary"><PaperUnlockCountdown expiresAt={paper.unlockExpiresAt}/></div><button className="practice-launch" onClick={() => setPracticing(true)}><span><Icon name="spark" size={18}/></span><div><strong>Start practice mode</strong><small>Answer at your own pace. Your work saves automatically.</small></div><Icon name="right" size={17}/></button><div className="detail-document paper-detail-document">
       <div className="paper-detail-document-heading"><span><Icon name="file" size={18}/> EXAM PAPER</span><h2>{paper.course || paper.title}</h2><p>{[paper.title, paper.year, paper.semester ? `Semester ${paper.semester}` : ''].filter(Boolean).join(' | ')}</p></div>
