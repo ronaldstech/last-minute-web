@@ -322,7 +322,7 @@ function App() {
       case 'Coins':
         return <CoinsScreen profile={profile} balance={coinBalance} freeBalance={Number(profile?.freeCoinBalance || 0)} session={session} onProfileChange={setProfile} showNotice={showNotice} />
       case 'Study groups':
-        return <GroupsScreen session={session} profile={profile} showNotice={showNotice} />
+        return <GroupsScreen session={session} profile={profile} onOpenProfile={() => navigate('Profile')} showNotice={showNotice} />
       case 'Notifications':
         return <NotificationsScreen session={session} onUnreadCount={setUnreadNotifications} showNotice={showNotice} />
       case 'Profile':
