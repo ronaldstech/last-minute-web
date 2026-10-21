@@ -208,6 +208,16 @@ function App() {
     setTopProfileMenuOpen(false)
     setActiveTab(tab)
     setSelectedPaper(null)
+    if (tab === 'Papers' && session?.authProvider === 'php-mysql') {
+      setPapersLoading(true)
+      listStudentPapers(session.token).then((records) => {
+        const decorated = decoratePapers(records)
+        setPapers(decorated)
+        setSavedIds(records.filter((paper) => paper.isSaved).map((paper) => paper.id))
+      }).catch((error) => {
+        showNotice(error.message || 'Could not refresh the paper library.')
+      }).finally(() => setPapersLoading(false))
+    }
   }
 
   const openPaper = (paper) => {

@@ -47,7 +47,8 @@ function rankPaper(paper, profile) {
 export default function PapersScreen({ query, setQuery, papers, allPapers = papers, profile, onOpenPaper, onOpenProfile, savedIds, onToggleSaved, loading }) {
   const [sortBy, setSortBy] = useState('recent')
   const [filtersOpen, setFiltersOpen] = useState(true)
-  const filters = useMemo(() => ['All subjects', ...new Set(allPapers.map((paper) => paper.course || paper.subject).filter(Boolean))].slice(0, 6), [allPapers])
+  const [selectedSubject, setSelectedSubject] = useState('all')
+  const subjects = useMemo(() => [...new Set(allPapers.map((paper) => paper.course || paper.subject).filter(Boolean))].sort((left, right) => left.localeCompare(right)), [allPapers])
   const recommendations = useMemo(() => allPapers
     .map((paper) => rankPaper(paper, profile || {}))
     .filter(Boolean)
@@ -57,11 +58,14 @@ export default function PapersScreen({ query, setQuery, papers, allPapers = pape
     .slice(0, 3), [allPapers, profile])
   const recommendationReasons = useMemo(() => Object.fromEntries(recommendations.map(({ paper, reasons }) => [paper.id, reasons.join(' · ')])), [recommendations])
   const hasStudyProfile = Boolean(profile?.program || profile?.department)
-  const sortedPapers = useMemo(() => [...papers].sort((left, right) => {
+  const visiblePapers = useMemo(() => selectedSubject === 'all'
+    ? papers
+    : papers.filter((paper) => (paper.course || paper.subject) === selectedSubject), [papers, selectedSubject])
+  const sortedPapers = useMemo(() => [...visiblePapers].sort((left, right) => {
     if (sortBy === 'year') return Number(right.year || 0) - Number(left.year || 0) || Number(right.id || 0) - Number(left.id || 0)
     if (sortBy === 'course') return String(left.course || left.subject || '').localeCompare(String(right.course || right.subject || ''))
     return new Date(right.updatedAt || right.createdAt || 0) - new Date(left.updatedAt || left.createdAt || 0) || Number(right.id || 0) - Number(left.id || 0)
-  }), [papers, sortBy])
+  }), [visiblePapers, sortBy])
 
   return <div className="papers-screen">
     <ScreenHeader kicker="THE PAPER LIBRARY" title="Explore papers" description="Find your next practice paper by subject, year, or topic." action={<span className="library-count"><Icon name="file" size={16} /> {allPapers.length} papers</span>} />
@@ -84,9 +88,11 @@ export default function PapersScreen({ query, setQuery, papers, allPapers = pape
     <section className="paper-library-section" aria-label="Browse all papers">
       <div className="paper-library-heading"><div><span className="section-kicker">THE FULL LIBRARY</span><h2>Browse all papers</h2></div><span className="library-count"><Icon name="file" size={15} /> {allPapers.length} available</span></div>
       <div className="search-wrap screen-search"><Icon name="search" size={20} /><input aria-label="Search papers" placeholder="Search papers, subjects, or years" value={query} onChange={(event) => setQuery(event.target.value)} /><button type="button" aria-label={filtersOpen ? 'Hide subject filters' : 'Show subject filters'} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}><Icon name="sliders" size={17} /></button></div>
-      {filtersOpen && <div className="filter-chips">{filters.map((filter) => <button type="button" className={query === (filter === 'All subjects' ? '' : filter) ? 'active' : ''} key={filter} onClick={() => setQuery(filter === 'All subjects' ? '' : filter)}>{filter}</button>)}</div>}
-      <div className="results-heading"><strong>{papers.length} {papers.length === 1 ? 'paper' : 'papers'}</strong><label>Sort by <select aria-label="Sort papers" value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="recent">Recently added</option><option value="year">Exam year</option><option value="course">Course name</option></select></label></div>
-      <PaperList papers={sortedPapers} savedIds={savedIds} onOpen={onOpenPaper} onToggleSaved={onToggleSaved} showSave loading={loading} />
+      {filtersOpen && <div className="filter-chips" role="group" aria-label="Filter papers by subject"><button type="button" className={selectedSubject === 'all' ? 'active' : ''} aria-pressed={selectedSubject === 'all'} onClick={() => setSelectedSubject('all')}>All subjects</button>{subjects.map((subject) => <button type="button" className={selectedSubject === subject ? 'active' : ''} aria-pressed={selectedSubject === subject} key={subject} onClick={() => setSelectedSubject(subject)}>{subject}</button>)}</div>}
+      <div className="results-heading"><strong>{sortedPapers.length} {sortedPapers.length === 1 ? 'paper' : 'papers'}</strong><label>Sort by <select aria-label="Sort papers" value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="recent">Recently added</option><option value="year">Exam year</option><option value="course">Course name</option></select></label></div>
+      {sortedPapers.length === 0 && !loading && (query || selectedSubject !== 'all')
+        ? <div className="empty-panel"><span className="empty-icon"><Icon name="search" size={22}/></span><h3>No papers match those filters</h3><p>Clear your search or choose another subject to see more papers.</p><button type="button" className="primary-button" onClick={() => { setQuery(''); setSelectedSubject('all') }}>Clear search and filters</button></div>
+        : <PaperList papers={sortedPapers} savedIds={savedIds} onOpen={onOpenPaper} onToggleSaved={onToggleSaved} showSave loading={loading} />}
     </section>
   </div>
 }

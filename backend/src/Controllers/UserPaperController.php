@@ -18,7 +18,15 @@ final class UserPaperController
     public function index(Request $request): array
     {
         $user = $this->authenticate->user($request);
-        return ['data' => ['papers' => $this->papers->listForUser($user['id'])]];
+        $pricing = $this->configuration->get();
+        return ['data' => [
+            'papers' => $this->papers->listForUser($user['id']),
+            'unlockPricing' => [
+                'daily' => $pricing['paperUnlockDailyCost'],
+                'weekly' => $pricing['paperUnlockWeeklyCost'],
+                'practiceMarkingPerQuestion' => $pricing['practiceMarkingCostPerQuestion'],
+            ],
+        ]];
     }
 
     public function history(Request $request): array

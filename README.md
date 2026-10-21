@@ -11,11 +11,11 @@ npm run dev
 
 ## PHP and MySQL auth API with XAMPP
 
-The working backend source is `C:\Users\liwewe\last-minute\backend`. Copy that whole `backend` folder into `C:\xampp\htdocs`, giving you `C:\xampp\htdocs\backend`. Keep the project copy so changes remain in the workspace.
+The working backend source is `C:\Users\liwewe\last-minute-web\backend`. Copy that whole `backend` folder into `C:\xampp\htdocs`, giving you `C:\xampp\htdocs\backend`. Keep the project copy so changes remain in the workspace.
 
 1. Start Apache and MySQL in XAMPP Control Panel.
 2. In the `htdocs\backend` copy, copy `.env.example` to `.env`. XAMPP's default MySQL user is `root`; add your MySQL password if you set one.
-3. Go to `http://localhost/phpmyadmin`, click **Import**, select `C:\xampp\htdocs\backend\schema.sql`, and import it.
+3. Go to `http://localhost/phpmyadmin`, click **Import**, select `C:\xampp\htdocs\backend\schema.sql`, and import it. Then run `migrations/019_add_coin_pricing_settings.sql`; the baseline schema does not include the latest app-configuration and coin-pricing columns.
 4. Start or restart Vite with `npm run dev`. The local API URL is `http://localhost/backend/public`.
 5. In Postman, import `C:\xampp\htdocs\backend\postman\Last-Minute-Auth.postman_collection.json` and run its requests in order.
 

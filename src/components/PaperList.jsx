@@ -11,6 +11,7 @@ export default function PaperList({ papers, savedIds = [], onOpen, onToggleSaved
     <div className="paper-list">
       {papers.map((paper) => {
         const isSaved = savedIds.includes(paper.id)
+        const dailyUnlockCost = Number.isFinite(Number(paper.unlockPricing?.daily)) ? Number(paper.unlockPricing.daily) : 20
         return (
           <article className="paper-row" key={paper.id}>
             <button className="paper-open" onClick={() => onOpen(paper)} aria-label={`Open ${paper.course || paper.subject}, ${paper.title}`}>
@@ -34,7 +35,7 @@ export default function PaperList({ papers, savedIds = [], onOpen, onToggleSaved
                 <Icon name="bookmark" size={17} />
               </button>
             )}
-            <span className={`paper-lock ${paper.isUnlocked ? 'is-unlocked' : ''}`}>{paper.isUnlocked ? <><Icon name="check" size={13} /> <b>Unlocked</b></> : <><Icon name="lock" size={13} /> <b>20</b></>}</span>
+            <span className={`paper-lock ${paper.isUnlocked ? 'is-unlocked' : ''}`} aria-label={paper.isUnlocked ? 'Paper unlocked' : `One-day unlock costs ${dailyUnlockCost.toLocaleString()} coins`}>{paper.isUnlocked ? <><Icon name="check" size={13} /> <b>Unlocked</b></> : <><Icon name="lock" size={13} /> <b>{dailyUnlockCost.toLocaleString()} coins</b></>}</span>
             <button className="row-arrow" aria-label="Open paper" onClick={() => onOpen(paper)}>
               <Icon name="right" size={16} />
             </button>

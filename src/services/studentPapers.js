@@ -13,7 +13,8 @@ async function request(path, token, options = {}) {
 
 export async function listStudentPapers(token) {
   const result = await request('/papers', token)
-  return result.papers || []
+  const unlockPricing = result.unlockPricing || { daily: 20, weekly: 100, practiceMarkingPerQuestion: 2 }
+  return (result.papers || []).map((paper) => ({ ...paper, unlockPricing }))
 }
 
 export async function getStudentPaper(token, paperId) {
