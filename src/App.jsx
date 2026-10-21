@@ -17,6 +17,7 @@ import { decoratePapers, listPapers, listSavedPaperIds, setPaperSaved, fetchUser
 import { getStudentPaper, listStudentPapers, saveStudentPaper, unlockStudentPaper } from './services/studentPapers.js'
 import './styles/layout.css'
 import './styles/screens.css'
+import './styles/adminStandalone.css'
 
 const navItems = [
   { label: 'Home', icon: 'home' },
@@ -328,8 +329,6 @@ function App() {
         return <ProfileScreen session={session} profile={profile} onProfileChange={setProfile} onSignOut={signOut} onOpenAdmin={() => navigate('Admin')} showNotice={showNotice} />
       case 'History':
         return <HistoryScreen session={session} />
-      case 'Admin':
-        return <AdminScreen session={session} profile={profile} onBack={() => navigate('Profile')} onSessionExpired={expireSession} showNotice={showNotice} />
       default:
         return <HomeScreen
           query={query}
@@ -355,6 +354,8 @@ function App() {
       ))}
     </nav>
   )
+
+  if (activeTab === 'Admin') return <main className="admin-standalone-shell"><AdminScreen session={session} profile={profile} onBack={() => navigate('Profile')} onSessionExpired={expireSession} showNotice={showNotice} />{notice && <div className="toast" role="status">{notice}</div>}</main>
 
   return (
     <div className="app-shell">
