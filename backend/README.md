@@ -45,6 +45,7 @@ Errors use `{ "message": "..." }` JSON.
 | `GET` | `/backend/public/auth/me` | Bearer token | Read the current account. |
 | `POST` | `/backend/public/auth/logout` | Bearer token | Revoke the current session. |
 | `GET` | `/backend/public/admin/users?limit=40&search=&cursor=` | Admin bearer token | Search and page through SQL accounts. Returns `users` and `nextCursor`. |
+| `GET` | `/backend/public/admin/dashboard` | Admin bearer token | Return MySQL counts for users, papers, and study groups. |
 | `GET` | `/backend/public/admin/papers?limit=40&cursor=` | Admin bearer token | Page through SQL papers. Returns `papers` and `nextCursor`. Add `id={id}` to load full paper content. |
 | `POST` | `/backend/public/admin/papers` | Admin bearer token | Create a paper with `{ "title": "quiz1|midsemester|quiz2|quiz3|endsemester|project|presentation|sample", "course", "year", "semester": "1|2", "departmentId", "programmeAssignments": [{ "programmeId", "studyYear": 1 }], "questions": [] }`. Exam year must be 2015 through the current year. Returns the saved `paper`. |
 | `PATCH` | `/backend/public/admin/papers?id={id}` | Admin bearer token | Replace a paper's metadata, department, programme assignments, and question content. Returns the updated `paper`. |

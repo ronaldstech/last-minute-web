@@ -54,3 +54,11 @@
 :root[data-theme="dark"] .admin-paper-table-actions .admin-paper-review-button:hover{background:linear-gradient(145deg,#3b8c64,#2c7450);border-color:#5b9c76}
 :root[data-theme="dark"] .admin-paper-table-actions .admin-paper-delete-button{background:#332426;border-color:#57383b;color:#f0aaa5}
 :root[data-theme="dark"] .admin-paper-table-actions .admin-paper-delete-button:hover{background:#442a2c;border-color:#754448;color:#ffc0ba}
+:root[data-theme="dark"] .admin-dashboard-heading{border-color:#344439;background:linear-gradient(120deg,#1c2b22,#191d28 72%)}
+:root[data-theme="dark"] .admin-dashboard-heading h2,:root[data-theme="dark"] .admin-dashboard-section-heading h3{color:#e1eee4}
+:root[data-theme="dark"] .admin-dashboard-heading p,:root[data-theme="dark"] .admin-dashboard-summary p,:root[data-theme="dark"] .admin-dashboard-section-heading p{color:#a3b1a7}
+:root[data-theme="dark"] .admin-dashboard-summary,:root[data-theme="dark"] .admin-dashboard-shortcuts button{border-color:#303b34;background:#191e29}
+:root[data-theme="dark"] .admin-dashboard-summary strong,:root[data-theme="dark"] .admin-dashboard-shortcuts strong{color:#e1e8e3}
+:root[data-theme="dark"] .admin-dashboard-shortcuts small{color:#a3aabb}
+:root[data-theme="dark"] .admin-dashboard-shortcuts button:hover{border-color:#45594b;background:#202a23;box-shadow:0 7px 20px #0003}
+:root[data-theme="dark"] .admin-dashboard-live{border-color:#354a3b;background:#1e2c23;color:#a7d7b5}
