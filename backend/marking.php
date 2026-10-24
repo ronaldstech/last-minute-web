@@ -126,9 +126,9 @@ $paperCourse = isset($data['paper']['course']) ? (string)$data['paper']['course'
 $paperYear = isset($data['paper']['year']) ? (string)$data['paper']['year'] : '';
 $sourceType = ($data['sourceType'] ?? '') === 'group_discussion' ? 'group_discussion' : 'practice';
 $pricing = (new \LastMinute\Repositories\AppConfigurationRepository($pdo))->get();
-$coinCostPerQuestion = $sourceType === 'group_discussion'
+$coinCostPerQuestion = ($user['role'] ?? '') === 'super_admin' ? 0 : ($sourceType === 'group_discussion'
     ? (int)$pricing['groupDiscussionMarkingCostPerResponse']
-    : (int)$pricing['practiceMarkingCostPerQuestion'];
+    : (int)$pricing['practiceMarkingCostPerQuestion']);
 $groupId = $sourceType === 'group_discussion' && isset($data['groupId']) && preg_match('/^[1-9][0-9]{0,18}$/', (string)$data['groupId']) ? (string)$data['groupId'] : null;
 $discussionId = $sourceType === 'group_discussion' && isset($data['discussionId']) && preg_match('/^[1-9][0-9]{0,18}$/', (string)$data['discussionId']) ? (string)$data['discussionId'] : null;
 $groupName = $sourceType === 'group_discussion' ? mb_substr(trim((string)($data['groupName'] ?? '')), 0, 200) : '';

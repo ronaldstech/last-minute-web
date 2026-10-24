@@ -11,15 +11,22 @@ async function request(path, token, options = {}) {
   return result
 }
 
+function accessiblePricing(pricing = {}, isSuperAdmin = false) {
+  const values = { daily: 20, weekly: 100, practiceMarkingPerQuestion: 2, ...pricing }
+  return isSuperAdmin ? { ...values, daily: 0, weekly: 0, practiceMarkingPerQuestion: 0 } : values
+}
+
 export async function listStudentPapers(token) {
   const result = await request('/papers', token)
-  const unlockPricing = result.unlockPricing || { daily: 20, weekly: 100, practiceMarkingPerQuestion: 2 }
-  return (result.papers || []).map((paper) => ({ ...paper, unlockPricing }))
+  const isSuperAdmin = Boolean(result.isSuperAdmin)
+  const unlockPricing = accessiblePricing(result.unlockPricing, isSuperAdmin)
+  return (result.papers || []).map((paper) => ({ ...paper, isSuperAdmin, unlockPricing }))
 }
 
 export async function getStudentPaper(token, paperId) {
   const result = await request(`/papers/detail?id=${encodeURIComponent(paperId)}`, token)
-  return { ...result.paper, unlockPricing: result.unlockPricing }
+  const isSuperAdmin = Boolean(result.isSuperAdmin)
+  return { ...result.paper, isSuperAdmin, unlockPricing: accessiblePricing(result.unlockPricing, isSuperAdmin) }
 }
 
 export async function saveStudentPaper(token, paperId, saved) {
@@ -28,7 +35,8 @@ export async function saveStudentPaper(token, paperId, saved) {
 
 export async function unlockStudentPaper(token, paperId, durationDays = 1) {
   const result = await request(`/papers/unlock?id=${encodeURIComponent(paperId)}`, token, { method: 'POST', body: { durationDays } })
-  return { ...result, paper: { ...result.paper, unlockPricing: result.unlockPricing } }
+  const isSuperAdmin = Boolean(result.isSuperAdmin)
+  return { ...result, paper: { ...result.paper, isSuperAdmin, unlockPricing: accessiblePricing(result.unlockPricing, isSuperAdmin) } }
 }
 
 export async function submitPracticeAnswer(token, paperId, questionKey, answer) {

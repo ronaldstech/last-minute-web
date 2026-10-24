@@ -10,31 +10,31 @@ final class UserPaperRepository
 {
     public function __construct(private readonly PDO $pdo) {}
 
-    public function listForUser(string $userId): array
+    public function listForUser(string $userId, bool $unlockedForSuperAdmin = false): array
     {
         $query = $this->pdo->prepare('SELECT p.id, p.title, p.course, p.year, p.semester, p.department_id, p.department_name, p.programme_assignments, p.question_count, p.created_at, p.updated_at, (s.paper_id IS NOT NULL) AS is_saved, (u.paper_id IS NOT NULL) AS is_unlocked, UNIX_TIMESTAMP(DATE_ADD(u.unlocked_at, INTERVAL u.unlock_duration_days DAY)) AS unlock_expires_at FROM papers p LEFT JOIN user_saved_papers s ON s.paper_id = p.id AND s.user_id = ? LEFT JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL u.unlock_duration_days DAY) ORDER BY p.year DESC, p.id DESC LIMIT 1000');
         $query->execute([$userId, $userId]);
-        $papers = array_map(static function (array $row): array {
+        $papers = array_map(static function (array $row) use ($unlockedForSuperAdmin): array {
             $paper = AdminPaperRepository::serialize($row);
             $paper['isSaved'] = (bool)$row['is_saved'];
-            $paper['isUnlocked'] = (bool)$row['is_unlocked'];
-            $paper['unlockExpiresAt'] = $row['unlock_expires_at'] === null ? null : (int)$row['unlock_expires_at'] * 1000;
+            $paper['isUnlocked'] = $unlockedForSuperAdmin || (bool)$row['is_unlocked'];
+            $paper['unlockExpiresAt'] = $unlockedForSuperAdmin || $row['unlock_expires_at'] === null ? null : (int)$row['unlock_expires_at'] * 1000;
             return $paper;
         }, $query->fetchAll());
         return $this->attachProgrammeAliases($papers);
     }
 
-    public function findForUser(string $userId, string $paperId): ?array
+    public function findForUser(string $userId, string $paperId, bool $unlockedForSuperAdmin = false): ?array
     {
         $query = $this->pdo->prepare('SELECT p.id, p.title, p.course, p.year, p.semester, p.department_id, p.department_name, p.questions, p.programme_assignments, p.question_count, p.created_at, p.updated_at, (s.paper_id IS NOT NULL) AS is_saved, (u.paper_id IS NOT NULL) AS is_unlocked, UNIX_TIMESTAMP(DATE_ADD(u.unlocked_at, INTERVAL u.unlock_duration_days DAY)) AS unlock_expires_at FROM papers p LEFT JOIN user_saved_papers s ON s.paper_id = p.id AND s.user_id = ? LEFT JOIN user_paper_unlocks u ON u.paper_id = p.id AND u.user_id = ? AND u.unlocked_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL u.unlock_duration_days DAY) WHERE p.id = ? LIMIT 1');
         $query->execute([$userId, $userId, $paperId]);
         $row = $query->fetch();
         if (!$row) return null;
-        $unlocked = (bool)$row['is_unlocked'];
+        $unlocked = $unlockedForSuperAdmin || (bool)$row['is_unlocked'];
         $paper = AdminPaperRepository::serialize($row, $unlocked);
         $paper['isSaved'] = (bool)$row['is_saved'];
         $paper['isUnlocked'] = $unlocked;
-        $paper['unlockExpiresAt'] = $row['unlock_expires_at'] === null ? null : (int)$row['unlock_expires_at'] * 1000;
+        $paper['unlockExpiresAt'] = $unlockedForSuperAdmin || $row['unlock_expires_at'] === null ? null : (int)$row['unlock_expires_at'] * 1000;
         return $paper;
     }
 

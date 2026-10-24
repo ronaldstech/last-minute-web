@@ -19,8 +19,10 @@ final class UserPaperController
     {
         $user = $this->authenticate->user($request);
         $pricing = $this->configuration->get();
+        $isSuperAdmin = ($user['role'] ?? '') === 'super_admin';
         return ['data' => [
-            'papers' => $this->papers->listForUser($user['id']),
+            'papers' => $this->papers->listForUser($user['id'], $isSuperAdmin),
+            'isSuperAdmin' => $isSuperAdmin,
             'unlockPricing' => [
                 'daily' => $pricing['paperUnlockDailyCost'],
                 'weekly' => $pricing['paperUnlockWeeklyCost'],
@@ -44,11 +46,12 @@ final class UserPaperController
     public function show(Request $request): array
     {
         $user = $this->authenticate->user($request);
+        $isSuperAdmin = ($user['role'] ?? '') === 'super_admin';
         $id = $this->paperId($request->query('id'));
-        $paper = $this->papers->findForUser($user['id'], $id);
+        $paper = $this->papers->findForUser($user['id'], $id, $isSuperAdmin);
         if (!$paper) throw new ApiException('Paper not found.', 404);
         $pricing = $this->configuration->get();
-        return ['data' => ['paper' => $paper, 'unlockPricing' => ['daily' => $pricing['paperUnlockDailyCost'], 'weekly' => $pricing['paperUnlockWeeklyCost'], 'practiceMarkingPerQuestion' => $pricing['practiceMarkingCostPerQuestion']]]];
+        return ['data' => ['paper' => $paper, 'isSuperAdmin' => $isSuperAdmin, 'unlockPricing' => ['daily' => $pricing['paperUnlockDailyCost'], 'weekly' => $pricing['paperUnlockWeeklyCost'], 'practiceMarkingPerQuestion' => $pricing['practiceMarkingCostPerQuestion']]]];
     }
 
     public function save(Request $request): array
@@ -76,7 +79,8 @@ final class UserPaperController
         $durationDays = (int)($input['durationDays'] ?? 1);
         if (!in_array($durationDays, [1, 7], true)) throw new ApiException('Choose a one-day or seven-day paper unlock.', 422);
         $pricing = $this->configuration->get();
-        $cost = $durationDays === 7 ? $pricing['paperUnlockWeeklyCost'] : $pricing['paperUnlockDailyCost'];
+        $isSuperAdmin = ($user['role'] ?? '') === 'super_admin';
+        $cost = $isSuperAdmin ? 0 : ($durationDays === 7 ? $pricing['paperUnlockWeeklyCost'] : $pricing['paperUnlockDailyCost']);
         try {
             $result = $this->papers->unlock($user['id'], $id, $cost, $durationDays);
         } catch (PDOException $error) {
@@ -88,7 +92,7 @@ final class UserPaperController
         $paper = $this->papers->findForUser($user['id'], $id);
         if (!$paper || !$paper['isUnlocked']) throw new ApiException('The paper was unlocked but could not be loaded. Please reopen it.', 500);
         $profile = $this->authenticate->user($request);
-        return ['data' => ['paper' => $paper, 'unlockPricing' => ['daily' => $pricing['paperUnlockDailyCost'], 'weekly' => $pricing['paperUnlockWeeklyCost'], 'practiceMarkingPerQuestion' => $pricing['practiceMarkingCostPerQuestion']], 'user' => array_merge($profile, ['coinBalance' => $result['coinBalance'], 'freeCoinBalance' => $result['freeCoinBalance']]), 'alreadyUnlocked' => $result['alreadyUnlocked'], 'unlockCost' => $cost, 'unlockDurationDays' => $durationDays]];
+        return ['data' => ['paper' => $paper, 'isSuperAdmin' => $isSuperAdmin, 'unlockPricing' => ['daily' => $pricing['paperUnlockDailyCost'], 'weekly' => $pricing['paperUnlockWeeklyCost'], 'practiceMarkingPerQuestion' => $pricing['practiceMarkingCostPerQuestion']], 'user' => array_merge($profile, ['coinBalance' => $result['coinBalance'], 'freeCoinBalance' => $result['freeCoinBalance']]), 'alreadyUnlocked' => $result['alreadyUnlocked'], 'unlockCost' => $cost, 'unlockDurationDays' => $durationDays]];
     }
 
     private function paperId(string $id): string
