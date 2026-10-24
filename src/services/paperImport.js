@@ -195,15 +195,117 @@ async function importDocx(file) {
   const xml = new TextDecoder().decode(xmlBytes)
   const document = new DOMParser().parseFromString(xml, 'application/xml')
   if (document.querySelector('parsererror')) throw new Error('The Word document contains invalid document XML.')
+  const wordNamespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+  const numbering = new Map()
+  try {
+    const numberingBytes = await readZipEntry(await file.arrayBuffer(), 'word/numbering.xml')
+    const numberingDocument = new DOMParser().parseFromString(new TextDecoder().decode(numberingBytes), 'application/xml')
+    const abstracts = new Map([...numberingDocument.getElementsByTagNameNS(wordNamespace, 'abstractNum')].map((item) => [item.getAttributeNS(wordNamespace, 'abstractNumId'), item]))
+    for (const item of numberingDocument.getElementsByTagNameNS(wordNamespace, 'num')) {
+      const id = item.getAttributeNS(wordNamespace, 'numId')
+      const abstractId = item.getElementsByTagNameNS(wordNamespace, 'abstractNumId')[0]?.getAttributeNS(wordNamespace, 'val')
+      numbering.set(id, { abstract: abstracts.get(abstractId), overrides: [...item.getElementsByTagNameNS(wordNamespace, 'lvlOverride')] })
+    }
+  } catch {
+    // Some Word documents contain no automatic list numbering.
+  }
   const paragraphs = [...document.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'p')]
+  const wordMathNamespace = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+  const listCounters = new Map()
+  const wordChild = (node, name) => [...(node?.children || [])].find((child) => child.namespaceURI === wordNamespace && child.localName === name)
+  const wordValue = (node, name = 'val') => node?.getAttributeNS(wordNamespace, name) || ''
+  const alphaNumber = (number) => {
+    let value = ''
+    for (let current = number; current > 0; current = Math.floor((current - 1) / 26)) value = String.fromCharCode(97 + ((current - 1) % 26)) + value
+    return value
+  }
+  const romanNumber = (number) => {
+    const pairs = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]
+    let output = ''
+    for (const [value, numeral] of pairs) while (number >= value) { output += numeral; number -= value }
+    return output
+  }
+  const formatListNumber = (number, format) => {
+    if (format === 'lowerLetter') return alphaNumber(number)
+    if (format === 'upperLetter') return alphaNumber(number).toUpperCase()
+    if (format === 'lowerRoman') return romanNumber(number).toLowerCase()
+    if (format === 'upperRoman') return romanNumber(number)
+    if (format === 'decimalZero') return String(number).padStart(2, '0')
+    return String(number)
+  }
+  const paragraphListMarker = (paragraph) => {
+    const properties = wordChild(paragraph, 'pPr')
+    const listProperties = wordChild(properties, 'numPr')
+    const numId = wordValue(wordChild(listProperties, 'numId'))
+    if (!numId || numId === '0') return ''
+    const level = Number(wordValue(wordChild(listProperties, 'ilvl')) || 0)
+    const definition = numbering.get(numId)
+    const levelOverride = definition?.overrides.find((item) => Number(wordValue(item, 'ilvl')) === level)
+    const levelDefinition = wordChild(levelOverride, 'lvl') || [...(definition?.abstract?.getElementsByTagNameNS(wordNamespace, 'lvl') || [])].find((item) => Number(wordValue(item, 'ilvl')) === level)
+    if (!levelDefinition) return ''
+    const startOverride = Number(wordValue(wordChild(levelOverride, 'startOverride')))
+    const start = startOverride || Number(wordValue(wordChild(levelDefinition, 'start')) || 1)
+    const key = `${numId}:${level}`
+    const counter = listCounters.has(key) ? listCounters.get(key) + 1 : start
+    listCounters.set(key, counter)
+    for (const existingKey of listCounters.keys()) {
+      const [existingNumId, existingLevel] = existingKey.split(':')
+      if (existingNumId === numId && Number(existingLevel) > level) listCounters.delete(existingKey)
+    }
+    const numberFormat = wordValue(wordChild(levelDefinition, 'numFmt')) || 'decimal'
+    return `${formatListNumber(counter, numberFormat)}. `
+  }
+  const mathChildren = (node) => [...node.children].filter((child) => child.namespaceURI === wordMathNamespace)
+  const mathText = (node) => {
+    const name = node.localName
+    const children = mathChildren(node)
+    const child = (childName) => children.find((item) => item.localName === childName)
+    const content = (childName) => child(childName) ? mathText(child(childName)) : ''
+    if (name === 't') return node.textContent || ''
+    if (name === 'r') return [...node.getElementsByTagNameNS(wordMathNamespace, 't')].map((text) => text.textContent || '').join('')
+    if (name === 'f') return `\\frac{${content('num')}}{${content('den')}}`
+    if (name === 'sSup') return `${content('e')}^{${content('sup')}}`
+    if (name === 'sSub') return `${content('e')}_{${content('sub')}}`
+    if (name === 'sSubSup') return `${content('e')}_{${content('sub')}}^{${content('sup')}}`
+    if (name === 'rad') return `\\sqrt{${content('e')}}`
+    if (name === 'nary') {
+      const properties = child('naryPr')
+      const operator = properties?.getElementsByTagNameNS(wordMathNamespace, 'chr')[0]?.getAttributeNS(wordMathNamespace, 'val') || '∑'
+      const lower = content('sub')
+      const upper = content('sup')
+      return `\\${operator === '∏' ? 'prod' : operator === '∫' ? 'int' : 'sum'}${lower ? `_{${lower}}` : ''}${upper ? `^{${upper}}` : ''}${content('e')}`
+    }
+    if (name === 'd') {
+      const expression = content('e')
+      const properties = child('dPr')
+      const begin = properties?.getElementsByTagNameNS(wordMathNamespace, 'begChr')[0]?.getAttributeNS(wordMathNamespace, 'val') || '('
+      const end = properties?.getElementsByTagNameNS(wordMathNamespace, 'endChr')[0]?.getAttributeNS(wordMathNamespace, 'val') || ')'
+      const open = begin === '{' ? '\\{' : begin
+      const close = end === '}' ? '\\}' : end
+      return `${open}${expression}${close}`
+    }
+    if (name === 'oMath' || name === 'oMathPara' || name === 'e' || name === 'num' || name === 'den' || name === 'sub' || name === 'sup') return children.map(mathText).join('')
+    return children.filter((item) => !['fPr', 'sSupPr', 'sSubPr', 'sSubSupPr', 'radPr', 'dPr', 'rPr'].includes(item.localName)).map(mathText).join('')
+  }
   const lines = paragraphs.map((paragraph) => {
     const output = []
-    for (const node of paragraph.getElementsByTagName('*')) {
-      if (node.localName === 't') output.push(node.textContent || '')
-      else if (node.localName === 'tab') output.push('\t')
-      else if (node.localName === 'br' || node.localName === 'cr') output.push('\n')
+    const visit = (node) => {
+      if (node.namespaceURI === wordMathNamespace && (node.localName === 'oMath' || node.localName === 'oMathPara')) {
+        const equation = mathText(node).trim()
+        if (equation) output.push(`\\(${equation}\\)`)
+        return
+      }
+      if (node.namespaceURI === 'http://schemas.openxmlformats.org/wordprocessingml/2006/main') {
+        if (node.localName === 't') { output.push(node.textContent || ''); return }
+        if (node.localName === 'tab') { output.push('\t'); return }
+        if (node.localName === 'br' || node.localName === 'cr') { output.push('\n'); return }
+      }
+      for (const child of node.children || []) visit(child)
     }
-    return output.join('').trim()
+    visit(paragraph)
+    const text = output.join('').trim()
+    const listMarker = paragraphListMarker(paragraph)
+    return listMarker && !text.startsWith(listMarker.trim()) ? `${listMarker}${text}` : text
   }).filter(Boolean)
   return textImportPaper(lines.join('\n'), file.name)
 }

@@ -3,6 +3,8 @@ import Icon from '../Icon.jsx'
 import { listAcademicRecords, listFirestoreDepartments } from '../../services/adminAcademics.js'
 import { listCollection } from '../../services/firestore.js'
 import { uploadPaperQuestionImage } from '../../services/paperQuestionImages.js'
+import { detectMath } from '../../utils/mathDetection.js'
+import MathText, { MathInput } from '../MathText.jsx'
 import './PaperReviewEditor.css'
 
 const questionTypes = ['structured', 'calculation', 'essay', 'diagram', 'programming', 'database_design', 'queue_simulation']
@@ -40,7 +42,7 @@ function ContentBlocksEditor({ content = [], onChange }) {
   return <div className="paper-question-content"><div className="paper-editor-label">Content blocks</div>{content.map((block, index) => {
     const remove = () => onChange(content.filter((_, current) => current !== index))
     if (block.type === 'table') return <TableContentEditor key={index} block={block} onChange={(changes) => updateBlock(index, changes)}/>
-    if (block.type === 'paragraph') return <label className="paper-content-block" key={index}><span>Paragraph</span><textarea rows={3} value={block.text || ''} onChange={(event) => updateBlock(index, { text: event.target.value })}/><button type="button" className="paper-remove-block" onClick={remove}>Remove block</button></label>
+    if (block.type === 'paragraph') return <div className="paper-content-block" key={index}><span>Paragraph</span><MathInput rows={3} value={block.text || ''} onChange={(text) => updateBlock(index, { text })}/>{detectMath(block.text || '').length > 0 && <div className="paper-math-preview"><b>Math preview</b><div><MathText text={block.text || ''}/></div></div>}<button type="button" className="paper-remove-block" onClick={remove}>Remove block</button></div>
     if (block.type === 'code') return <label className="paper-content-block" key={index}><span>Code {block.language ? `· ${block.language}` : ''}</span><textarea rows={4} value={block.code || ''} onChange={(event) => updateBlock(index, { code: event.target.value })}/></label>
     if (block.type === 'image') return <div className="paper-content-block" key={index}><span>Image reference</span><input value={block.path || ''} placeholder="Image URL or storage path" onChange={(event) => updateBlock(index, { path: event.target.value })}/><input value={block.caption || ''} placeholder="Caption (optional)" onChange={(event) => updateBlock(index, { caption: event.target.value })}/></div>
     if (block.type === 'bullet_list') return <label className="paper-content-block" key={index}><span>{block.ordered ? 'Numbered list' : 'Bullet list'} · one item per line</span><textarea rows={3} value={(block.items || []).join('\n')} onChange={(event) => updateBlock(index, { items: event.target.value.split('\n') })}/><label className="paper-inline-check"><input type="checkbox" checked={Boolean(block.ordered)} onChange={(event) => updateBlock(index, { ordered: event.target.checked })}/> Number this list</label></label>
@@ -54,10 +56,11 @@ function SubquestionsEditor({ items = [], onChange, depth = 0, session }) {
     {items.map((item, index) => <div className="paper-subquestion" key={item.id || `${depth}-${index}`}>
       <div className="paper-subquestion-fields">
         <input aria-label="Sub-question number" value={item.number || ''} placeholder="a" onChange={(event) => update(index, { number: event.target.value })}/>
-        <textarea aria-label={`Sub-question ${item.number || index + 1} text`} rows={2} value={item.text || ''} placeholder="Enter sub-question prompt" onChange={(event) => update(index, { text: event.target.value })}/>
+        <MathInput aria-label={`Sub-question ${item.number || index + 1} text`} rows={2} value={item.text || ''} placeholder="Enter sub-question prompt" onChange={(text) => update(index, { text })}/>
         <input aria-label="Sub-question marks" type="number" min="0" value={item.marks ?? ''} placeholder="Marks" onChange={(event) => update(index, { marks: event.target.value === '' ? null : Number(event.target.value) })}/>
         <button type="button" className="paper-icon-button" aria-label="Remove sub-question" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Icon name="trash" size={15}/></button>
       </div>
+      {detectMath(item.text || '').length > 0 && <div className="paper-math-preview"><b>Math preview</b><div><MathText text={item.text || ''}/></div></div>}
       <ContentBlocksEditor content={item.content || []} onChange={(content) => update(index, { content })}/>
       <div className="paper-subquestion-attachment-row"><ImageAttachments images={item.images || []} session={session} compact onChange={(images) => update(index, { images })}/></div>
       <SubquestionsEditor items={item.subquestions || []} depth={depth + 1} session={session} onChange={(subquestions) => update(index, { subquestions })}/>
@@ -69,7 +72,7 @@ function SubquestionsEditor({ items = [], onChange, depth = 0, session }) {
 function QuestionCard({ question, index, session, onChange, onRemove }) {
   const updateBlock = (blockIndex, changes) => onChange({ ...question, content: (question.content || []).map((block, current) => current === blockIndex ? { ...block, ...changes } : block) })
   const renderBlock = (block, blockIndex) => {
-    if (block.type === 'paragraph') return <label className="paper-content-block" key={blockIndex}><span>Paragraph</span><textarea rows={3} value={block.text || ''} placeholder="Write question content" onChange={(event) => updateBlock(blockIndex, { text: event.target.value })}/><button type="button" className="paper-remove-block" onClick={() => onChange({ ...question, content: question.content.filter((_, current) => current !== blockIndex) })}>Remove block</button></label>
+    if (block.type === 'paragraph') return <div className="paper-content-block" key={blockIndex}><span>Paragraph</span><MathInput rows={3} value={block.text || ''} placeholder="Write question content" onChange={(text) => updateBlock(blockIndex, { text })}/>{detectMath(block.text || '').length > 0 && <div className="paper-math-preview"><b>Math preview</b><div><MathText text={block.text || ''}/></div></div>}<button type="button" className="paper-remove-block" onClick={() => onChange({ ...question, content: question.content.filter((_, current) => current !== blockIndex) })}>Remove block</button></div>
     if (block.type === 'code') return <label className="paper-content-block" key={blockIndex}><span>Code {block.language ? `· ${block.language}` : ''}</span><textarea rows={4} value={block.code || ''} placeholder="Enter code snippet" onChange={(event) => updateBlock(blockIndex, { code: event.target.value })}/></label>
     if (block.type === 'image') return <div className="paper-content-block" key={blockIndex}><span>Image reference</span><input value={block.path || ''} placeholder="Image URL or storage path" onChange={(event) => updateBlock(blockIndex, { path: event.target.value })}/><input value={block.caption || ''} placeholder="Caption (optional)" onChange={(event) => updateBlock(blockIndex, { caption: event.target.value })}/></div>
     if (block.type === 'bullet_list') return <label className="paper-content-block" key={blockIndex}><span>{block.ordered ? 'Numbered list' : 'Bullet list'} · one item per line</span><textarea rows={3} value={(block.items || []).join('\n')} onChange={(event) => updateBlock(blockIndex, { items: event.target.value.split('\n') })}/><label className="paper-inline-check"><input type="checkbox" checked={Boolean(block.ordered)} onChange={(event) => updateBlock(blockIndex, { ordered: event.target.checked })}/> Number this list</label></label>
