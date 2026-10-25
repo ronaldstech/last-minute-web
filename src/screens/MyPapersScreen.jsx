@@ -15,8 +15,9 @@ function matchesName(left, right) {
 }
 
 function assignmentMatches(assignment, paper, profile) {
-  const programmeMatches = [assignment.programmeName, assignment.alias, assignment.programmeAlias, assignment.programmeCode]
-    .some((name) => matchesName(name, profile.program))
+  // Profile editing stores the programme's full directory name. Aliases and
+  // codes are display/search metadata and must not decide My papers matches.
+  const programmeMatches = matchesName(assignment.programmeName, profile.program)
   const departmentMatches = matchesName(paper.departmentName || assignment.departmentName, profile.department)
   const assignedYear = assignment.studyYear || assignment.studyYears?.[0]
   const yearMatches = !assignedYear || Number(assignedYear) === Number(profile.yearOfStudy)
