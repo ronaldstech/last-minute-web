@@ -11,6 +11,7 @@ import { submitPaperReport } from './services/paperReports.js'
 import NotificationsScreen from './screens/NotificationsScreen.jsx'
 import ProfileScreen from './screens/ProfileScreen.jsx'
 import PapersScreen from './screens/PapersScreen.jsx'
+import MyPapersScreen from './screens/MyPapersScreen.jsx'
 import SavedScreen from './screens/SavedScreen.jsx'
 import { clearSession, restoreSession, saveSession, signOut as signOutApi } from './services/authApi.js'
 import { decoratePapers, listPapers, listSavedPaperIds, setPaperSaved, fetchUserProfile } from './services/studyRepository.js'
@@ -23,14 +24,14 @@ import './styles/theme.css'
 const navItems = [
   { label: 'Home', icon: 'home' },
   { label: 'Papers', icon: 'file' },
-  { label: 'Saved', icon: 'bookmark' },
+  { label: 'My papers', icon: 'book' },
   { label: 'Coins', icon: 'coins' },
   { label: 'Study groups', icon: 'users' },
 ]
 
 const PAGE_STATE_KEY = 'last-minute-page-state'
 const THEME_STORAGE_KEY = 'last-minute-theme'
-const validTabs = new Set(['Home', 'Papers', 'Saved', 'Coins', 'Study groups', 'Notifications', 'Profile', 'History', 'Admin'])
+const validTabs = new Set(['Home', 'Papers', 'My papers', 'Saved', 'Coins', 'Study groups', 'Notifications', 'Profile', 'History', 'Admin'])
 
 function readTheme() {
   try { return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light' }
@@ -346,6 +347,8 @@ function App() {
     switch (activeTab) {
       case 'Papers':
         return <PapersScreen {...sharedPaperProps} profile={profile} query={query} setQuery={setQuery} onOpenProfile={() => navigate('Profile')} showNotice={showNotice} loading={papersLoading} />
+      case 'My papers':
+        return <MyPapersScreen papers={papers} profile={profile} emailFallback={session.email} savedIds={savedIds} loading={papersLoading} onOpenPaper={openPaper} onToggleSaved={toggleSaved} onOpenProfile={() => navigate('Profile')} />
       case 'Saved':
         return <SavedScreen papers={papers} savedIds={savedIds} loading={savedLoading || papersLoading} onToggleSaved={toggleSaved} onOpenPaper={openPaper} onBrowse={() => navigate('Papers')} />
       case 'Coins':
@@ -378,7 +381,6 @@ function App() {
         <button key={item.label} className={activeTab === item.label ? 'selected' : ''} onClick={() => navigate(item.label)}>
           <Icon name={item.icon} size={18} />
           <span>{item.label === 'Study groups' && className === 'mobile-nav' ? 'Groups' : item.label}</span>
-          {item.label === 'Saved' && savedIds.length > 0 && className === 'side-nav' && <span className="nav-count">{savedIds.length}</span>}
         </button>
       ))}
     </nav>
@@ -397,14 +399,14 @@ function App() {
         {navigation('side-nav')}
         <div className="sidebar-bottom">
           <div className="help-card"><div className="help-icon"><Icon name="spark" size={17} /></div><strong>Keep your momentum</strong><p>A little practice each day adds up.</p><button onClick={() => showNotice('Your study streak starts today!')}>View study tips <Icon name="arrow" size={12} /></button></div>
-          <div className="profile-menu-wrap"><button className="profile-row" aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((open) => !open)}><span className="avatar">{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</span><span><strong>{profile?.username || session.name || session.email || 'Student account'}</strong><small>Account menu</small></span><span className="more"><Icon name="more" size={18} /></span></button>{profileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div>
+          <div className="profile-menu-wrap"><button className="profile-row" aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((open) => !open)}><span className="avatar">{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</span><span><strong>{profile?.username || session.name || session.email || 'Student account'}</strong><small>Account menu</small></span><span className="more"><Icon name="more" size={18} /></span></button>{profileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'Saved' ? 'active' : ''} onClick={() => navigate('Saved')}><Icon name="bookmark" size={16}/> Saved papers</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div>
         </div>
       </aside>
 
       <main className="main-area" id="home">
         <header className="topbar">
           <div className="breadcrumb">Study space <span>/</span> <strong>{selectedPaper ? 'Paper details' : activeTab}</strong></div>
-          <div className="top-actions"><button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18}/></button><button className="icon-button" aria-label="Notifications" onClick={() => navigate('Notifications')}><Icon name="bell" size={18} />{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><div className="profile-menu-wrap top-profile-menu"><button className="top-avatar" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={topProfileMenuOpen} onClick={() => setTopProfileMenuOpen((open) => !open)}>{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</button>{topProfileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div></div>
+          <div className="top-actions"><button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18}/></button><button className="icon-button" aria-label="Notifications" onClick={() => navigate('Notifications')}><Icon name="bell" size={18} />{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><div className="profile-menu-wrap top-profile-menu"><button className="top-avatar" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={topProfileMenuOpen} onClick={() => setTopProfileMenuOpen((open) => !open)}>{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</button>{topProfileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'Saved' ? 'active' : ''} onClick={() => navigate('Saved')}><Icon name="bookmark" size={16}/> Saved papers</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div></div>
         </header>
         <div className="page-content">{renderScreen()}</div>
       </main>
