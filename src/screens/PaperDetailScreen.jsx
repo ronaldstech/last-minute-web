@@ -63,7 +63,8 @@ function PaperInformation({ paper }) {
   </section>
 }
 
-function PracticeAnswerField({ answerKey, answer, submission, submitting, error, onChange, onSubmit, markingCost }) {
+function PracticeAnswerField({ answerKey, answer, images = [], submission, submitting, error, onChange, onImages, onSubmit, markingCost }) {
+  const [uploadError, setUploadError] = useState('')
   const inputId = `practice-answer-${answerKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`
   const table = decodeTableAnswer(answer)
   const updateTable = (changes) => onChange(answerKey, encodeTableAnswer({ ...table, ...changes }))
@@ -75,11 +76,32 @@ function PracticeAnswerField({ answerKey, answer, submission, submitting, error,
   const updateCell = (rowIndex, columnIndex, value) => updateTable({ rows: table.rows.map((row, index) => index === rowIndex ? row.map((cell, cellIndex) => cellIndex === columnIndex ? value : cell) : row) })
   const addColumn = () => updateTable({ columns: [...table.columns, `Column ${table.columns.length + 1}`], rows: table.rows.map((row) => [...row, '']) })
   const addRow = () => updateTable({ rows: [...table.rows, table.columns.map(() => '')] })
+  const addImages = async (event) => {
+    const files = [...(event.target.files || [])]
+    event.target.value = ''
+    if (!files.length) return
+    if (images.length + files.length > 3) return setUploadError('You can attach up to 3 images per answer.')
+    const imageFiles = files.filter((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 5 * 1024 * 1024)
+    if (imageFiles.length !== files.length) return setUploadError('Use JPG, PNG, or WebP images up to 5 MB each.')
+    try {
+    const loaded = await Promise.all(imageFiles.map((file) => new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ name: file.name, dataUrl: reader.result })
+      reader.onerror = () => reject(new Error('Could not read one of the images.'))
+      reader.readAsDataURL(file)
+    })))
+    setUploadError('')
+    onImages(answerKey, [...images, ...loaded])
+    } catch { setUploadError('Could not read one of the images. Try another file.') }
+  }
+  const canSubmit = hasPracticeAnswerContent(answer) || images.length > 0
   return <div className="practice-answer-field">
     <div className="practice-answer-toolbar"><strong>Your answer</strong><div className="practice-answer-modes" role="group" aria-label="Answer format"><button type="button" className={!table ? 'is-active' : ''} aria-pressed={!table} disabled={submitting} onClick={selectText}>Text</button><button type="button" className={table ? 'is-active' : ''} aria-pressed={Boolean(table)} disabled={submitting} onClick={selectTable}>Table</button></div></div>
     {table ? <div className="practice-table-editor"><div className="practice-table-scroll"><table><thead><tr>{table.columns.map((column, columnIndex) => <th key={columnIndex}><input aria-label={`Table column ${columnIndex + 1}`} value={column} disabled={submitting} onChange={(event) => updateColumn(columnIndex, event.target.value)} placeholder={`Column ${columnIndex + 1}`}/></th>)}</tr></thead><tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{table.columns.map((_, columnIndex) => <td key={columnIndex}><input aria-label={`Row ${rowIndex + 1}, column ${columnIndex + 1}`} value={row[columnIndex] || ''} disabled={submitting} onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)} placeholder="Enter detail"/></td>)}</tr>)}</tbody></table></div><div className="practice-table-actions"><button type="button" disabled={submitting} onClick={addRow}>+ Add row</button><button type="button" disabled={submitting} onClick={addColumn}>+ Add column</button></div></div> : <textarea id={inputId} value={answer || ''} disabled={submitting} onChange={(event) => onChange(answerKey, event.target.value)} placeholder="Write your answer here…" rows={4}/>}
+    <div className="practice-image-attachments"><label className="practice-image-upload"><Icon name="file" size={14}/> Add workings image<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={submitting || images.length >= 3} onChange={addImages}/></label><span>JPG, PNG, or WebP · up to 3 images, 5 MB each</span>{images.map((image, index) => <figure key={`${image.name}-${index}`}><img src={image.dataUrl} alt={`Attached working ${index + 1}`}/><figcaption>{image.name}<button type="button" aria-label={`Remove ${image.name}`} disabled={submitting} onClick={() => onImages(answerKey, images.filter((_, imageIndex) => imageIndex !== index))}>Remove</button></figcaption></figure>)}</div>
+    {uploadError && <span className="practice-submit-error" role="alert">{uploadError}</span>}
     <div className="practice-submit-row">
-      <button className="practice-submit" type="button" disabled={submitting || !hasPracticeAnswerContent(answer)} onClick={() => onSubmit(answerKey)}><Icon name={submitting ? 'clock' : 'spark'} size={14}/>{submitting ? 'Submitting…' : submission ? 'Submit again' : 'Submit for marking'}{Number(markingCost || 0) > 0 ? ` · −${Number(markingCost).toLocaleString()} coins` : ' · Free'}</button>
+      <button className="practice-submit" type="button" disabled={submitting || !canSubmit} onClick={() => onSubmit(answerKey)}><Icon name={submitting ? 'clock' : 'spark'} size={14}/>{submitting ? 'Submitting…' : submission ? 'Submit again' : 'Submit for marking'}{Number(markingCost || 0) > 0 ? ` · −${Number(markingCost).toLocaleString()} coins` : ' · Free'}</button>
       {submission && <span className="practice-submit-status"><Icon name="check" size={13}/>{submission.marking ? `Marked ${submission.marking.score} / ${submission.marking.maxMarks}` : `Submitted · ${submission.status === 'pending' ? 'awaiting marking' : submission.status}`}</span>}
       {error && <span className="practice-submit-error" role="alert">{error}</span>}
     </div>
@@ -87,19 +109,19 @@ function PracticeAnswerField({ answerKey, answer, submission, submitting, error,
   </div>
 }
 
-function Subquestions({ items = [], depth = 0, parentKey = '', answers = {}, submissions = {}, submitting = {}, errors = {}, onPracticeAnswer, onPracticeSubmit, markingCost }) {
+function Subquestions({ items = [], depth = 0, parentKey = '', answers = {}, answerImages = {}, submissions = {}, submitting = {}, errors = {}, onPracticeAnswer, onPracticeImages, onPracticeSubmit, markingCost }) {
   if (!items.length) return null
   return <div className="paper-detail-subquestions" style={{ '--question-depth': depth }}>
     {items.map((item, index) => {
       const answerKey = `${parentKey}.${item.id || index}`
       return <article className="paper-detail-subquestion" key={item.id || `${depth}-${index}`}><div className="paper-detail-subquestion-heading"><strong>{item.number || String.fromCharCode(97 + index)}.</strong><span><MathText text={item.text || ''}/></span>{item.marks !== null && item.marks !== undefined && <small>[{item.marks} marks]</small>}</div>{Array.isArray(item.content) && item.content.length > 0 && <div className="paper-detail-question-content">{item.content.map((block, blockIndex) => <ContentBlock key={`${item.id || index}-${blockIndex}`} block={block}/>)}</div>}<QuestionImages images={item.images || []}/>
-        {onPracticeAnswer && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit} markingCost={markingCost}/></div>}
-        <Subquestions items={item.subquestions || []} depth={depth + 1} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit} markingCost={markingCost}/></article>
+        {onPracticeAnswer && <div className="practice-subanswer"><PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} images={answerImages[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onImages={onPracticeImages} onSubmit={onPracticeSubmit} markingCost={markingCost}/></div>}
+        <Subquestions items={item.subquestions || []} depth={depth + 1} parentKey={answerKey} answers={answers} answerImages={answerImages} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeImages={onPracticeImages} onPracticeSubmit={onPracticeSubmit} markingCost={markingCost}/></article>
     })}
   </div>
 }
 
-export function PaperQuestion({ question, index, answers, submissions, submitting, errors, onPracticeAnswer, onPracticeSubmit, markingCost }) {
+export function PaperQuestion({ question, index, answers, answerImages, submissions, submitting, errors, onPracticeAnswer, onPracticeImages, onPracticeSubmit, markingCost }) {
   const content = Array.isArray(question.content) ? question.content : []
   const questionNumber = question.number ?? index + 1
   const answerKey = String(question.id || index)
@@ -108,8 +130,8 @@ export function PaperQuestion({ question, index, answers, submissions, submittin
     {content.length ? <div className="paper-detail-question-content">{content.map((block, blockIndex) => <ContentBlock key={`${question.id || index}-${blockIndex}`} block={block}/>)}</div> : question.text ? <p className="paper-detail-question-text"><MathText text={question.text}/></p> : null}
     <QuestionImages images={question.images || []}/>
     {question.assets?.length > 0 && <ul className="paper-detail-assets">{question.assets.map((asset, assetIndex) => { const path = typeof asset === 'string' ? asset : asset.path || asset.url || asset.name || 'Attached file'; return <li key={`${path}-${assetIndex}`}>{asset.caption || asset.name || path}</li> })}</ul>}
-    {onPracticeAnswer && hasPrompt && <PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onSubmit={onPracticeSubmit} markingCost={markingCost}/>}
-    <Subquestions items={question.subquestions || []} parentKey={answerKey} answers={answers} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeSubmit={onPracticeSubmit} markingCost={markingCost}/>
+    {onPracticeAnswer && hasPrompt && <PracticeAnswerField answerKey={answerKey} answer={answers[answerKey]} images={answerImages?.[answerKey]} submission={submissions[answerKey]} submitting={submitting[answerKey]} error={errors[answerKey]} onChange={onPracticeAnswer} onImages={onPracticeImages} onSubmit={onPracticeSubmit} markingCost={markingCost}/>}
+    <Subquestions items={question.subquestions || []} parentKey={answerKey} answers={answers} answerImages={answerImages} submissions={submissions} submitting={submitting} errors={errors} onPracticeAnswer={onPracticeAnswer} onPracticeImages={onPracticeImages} onPracticeSubmit={onPracticeSubmit} markingCost={markingCost}/>
   </article>
 }
 

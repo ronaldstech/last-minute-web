@@ -70,7 +70,7 @@ function findQuestionForMarking(questions = [], wantedKey) {
   return visit(questions)
 }
 
-export async function markPracticeAnswer({ token, paper, questionKey, answer }) {
+export async function markPracticeAnswer({ token, paper, questionKey, answer, images = [] }) {
   if (!token) throw new Error('Your session has expired. Sign in again before marking an answer.')
   const question = findQuestionForMarking(paper.questions || [], questionKey)
   if (!question) throw new Error('Could not find this question in the paper.')
@@ -85,6 +85,7 @@ export async function markPracticeAnswer({ token, paper, questionKey, answer }) 
         number: question.number,
         prompt: question.prompt,
         answer,
+        images: images.map((image) => image.dataUrl),
         maxMarks: Number(question.item.marks || 0),
       }],
     }),

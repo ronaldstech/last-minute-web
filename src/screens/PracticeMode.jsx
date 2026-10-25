@@ -19,12 +19,13 @@ function answerFieldCount(question) {
   return Number(hasAnswerablePrompt(question)) + countSubquestions(question.subquestions || [])
 }
 
-function hasAnsweredQuestion(question, index, answers) {
+function hasAnsweredQuestion(question, index, answers, answerImages) {
   const rootKey = String(question.id || index)
-  if (hasAnswerablePrompt(question) && hasPracticeAnswerContent(answers[rootKey])) return true
+  const hasAnswer = (key) => hasPracticeAnswerContent(answers[key]) || Boolean(answerImages[key]?.length)
+  if (hasAnswerablePrompt(question) && hasAnswer(rootKey)) return true
   const hasAnsweredSubquestion = (items = [], parentKey = rootKey) => items.some((item, itemIndex) => {
     const key = `${parentKey}.${item.id || itemIndex}`
-    return hasPracticeAnswerContent(answers[key]) || hasAnsweredSubquestion(item.subquestions || [], key)
+    return hasAnswer(key) || hasAnsweredSubquestion(item.subquestions || [], key)
   })
   return hasAnsweredSubquestion(question.subquestions || [])
 }
@@ -34,6 +35,7 @@ export default function PracticeMode({ paper, sessionToken, onExit }) {
   const storageKey = `last-minute-practice-${paper.id}`
   const initial = useMemo(() => readProgress(storageKey, questions.length), [storageKey, questions.length])
   const [answers, setAnswers] = useState(initial.answers)
+  const [answerImages, setAnswerImages] = useState({})
   const [submissions, setSubmissions] = useState(initial.submissions)
   const [submitting, setSubmitting] = useState({})
   const [submitErrors, setSubmitErrors] = useState({})
@@ -50,10 +52,16 @@ export default function PracticeMode({ paper, sessionToken, onExit }) {
     try { localStorage.setItem(storageKey, JSON.stringify({ answers, submissions, index, startedAt })) } catch { /* Continue practice if storage is unavailable. */ }
   }, [answers, submissions, index, startedAt, storageKey])
 
-  const answered = Object.values(answers).filter(hasPracticeAnswerContent).length
+  const answerKeys = new Set([...Object.keys(answers), ...Object.keys(answerImages)])
+  const answered = [...answerKeys].filter((key) => hasPracticeAnswerContent(answers[key]) || Boolean(answerImages[key]?.length)).length
   const totalAnswerFields = questions.reduce((total, question) => total + answerFieldCount(question), 0)
   const updateAnswer = (key, value) => {
     setAnswers((current) => ({ ...current, [key]: value }))
+    setSubmissions((current) => { const next = { ...current }; delete next[key]; return next })
+    setSubmitErrors((current) => { const next = { ...current }; delete next[key]; return next })
+  }
+  const updateImages = (key, images) => {
+    setAnswerImages((current) => ({ ...current, [key]: images }))
     setSubmissions((current) => { const next = { ...current }; delete next[key]; return next })
     setSubmitErrors((current) => { const next = { ...current }; delete next[key]; return next })
   }
@@ -63,8 +71,10 @@ export default function PracticeMode({ paper, sessionToken, onExit }) {
     setSubmitErrors((current) => ({ ...current, [key]: '' }))
     try {
       const answer = practiceAnswerText(answers[key] || '')
-      const submission = await submitPracticeAnswer(sessionToken, paper.id, key, answer)
-      const marking = await markPracticeAnswer({ token: sessionToken, paper, questionKey: key, answer })
+      const images = answerImages[key] || []
+      const storedAnswer = answer || (images.length ? '[Image answer attached]' : '')
+      const submission = await submitPracticeAnswer(sessionToken, paper.id, key, storedAnswer)
+      const marking = await markPracticeAnswer({ token: sessionToken, paper, questionKey: key, answer: storedAnswer, images })
       setSubmissions((current) => ({ ...current, [key]: { ...submission, status: 'marked', marking } }))
     } catch (error) {
       setSubmitErrors((current) => ({ ...current, [key]: error.message || 'Could not submit this answer. Try again.' }))
@@ -78,10 +88,10 @@ export default function PracticeMode({ paper, sessionToken, onExit }) {
   return <section className="practice-shell">
     <div className="practice-heading"><button className="practice-back" onClick={onExit}><Icon name="left" size={15}/> Paper details</button><span className="practice-live"><i/> PRACTICE SESSION</span></div>
     <div className="practice-title"><div><span>{paper.course || paper.subject}</span><h1>{finished ? 'Session complete' : 'Practice mode'}</h1><p>{paper.title} · {questions.length} questions · {Number(paper.unlockPricing?.practiceMarkingPerQuestion ?? 2) > 0 ? `${Number(paper.unlockPricing?.practiceMarkingPerQuestion ?? 2).toLocaleString()} coins per marked question` : 'Free marking'}</p></div><div className="practice-time-cards">{paper.isSuperAdmin && <small>Free access · no expiry</small>}<PaperUnlockCountdown expiresAt={paper.unlockExpiresAt}/><div className="practice-clock"><Icon name="clock" size={16}/><span>{formatTime(elapsed)}</span><small>TIME ELAPSED</small></div></div></div>
-    {finished ? <div className="practice-complete"><span className="practice-complete-icon"><Icon name="check" size={23}/></span><h2>Good work. Session complete.</h2><p>You answered {answered} of {totalAnswerFields} question and subquestion prompts in {formatTime(elapsed)}. Your answers are saved on this device.</p><div className="practice-complete-actions"><button className="practice-secondary" onClick={() => setFinished(false)}>Review answers</button><button className="practice-primary" onClick={() => { setAnswers({}); setIndex(0); setFinished(false); try { localStorage.removeItem(storageKey) } catch { /* Ignore storage errors. */ } }}>Start again</button></div></div> : <>
+    {finished ? <div className="practice-complete"><span className="practice-complete-icon"><Icon name="check" size={23}/></span><h2>Good work. Session complete.</h2><p>You answered {answered} of {totalAnswerFields} question and subquestion prompts in {formatTime(elapsed)}. Your answers are saved on this device.</p><div className="practice-complete-actions"><button className="practice-secondary" onClick={() => setFinished(false)}>Review answers</button><button className="practice-primary" onClick={() => { setAnswers({}); setAnswerImages({}); setSubmissions({}); setIndex(0); setFinished(false); try { localStorage.removeItem(storageKey) } catch { /* Ignore storage errors. */ } }}>Start again</button></div></div> : <>
       <div className="practice-progress"><div><span>Question {index + 1} of {questions.length}</span><span>{answered} answered</span></div><div className="practice-progress-track"><i style={{ width: `${((index + 1) / questions.length) * 100}%` }}/></div></div>
-      <div className="practice-question-card"><PaperQuestion question={questions[index]} index={index} answers={answers} submissions={submissions} submitting={submitting} errors={submitErrors} onPracticeAnswer={updateAnswer} onPracticeSubmit={submitAnswer} markingCost={paper.unlockPricing?.practiceMarkingPerQuestion ?? 2}/></div>
-      <nav className="practice-navigation"><button className="practice-secondary" disabled={index === 0} onClick={() => setIndex((current) => Math.max(0, current - 1))}><Icon name="left" size={15}/> Previous</button><div className="practice-dots">{questions.map((question, questionIndex) => <button aria-label={`Go to question ${questionIndex + 1}`} aria-current={questionIndex === index ? 'step' : undefined} className={`${questionIndex === index ? 'is-current' : ''} ${hasAnsweredQuestion(question, questionIndex, answers) ? 'is-answered' : ''}`} key={question.id || questionIndex} onClick={() => setIndex(questionIndex)}>{questionIndex + 1}</button>)}</div>{index < questions.length - 1 ? <button className="practice-primary" onClick={() => setIndex((current) => Math.min(questions.length - 1, current + 1))}>Next question <Icon name="right" size={15}/></button> : <button className="practice-primary" onClick={() => setFinished(true)}><Icon name="check" size={15}/> Finish session</button>}</nav>
+      <div className="practice-question-card"><PaperQuestion question={questions[index]} index={index} answers={answers} answerImages={answerImages} submissions={submissions} submitting={submitting} errors={submitErrors} onPracticeAnswer={updateAnswer} onPracticeImages={updateImages} onPracticeSubmit={submitAnswer} markingCost={paper.unlockPricing?.practiceMarkingPerQuestion ?? 2}/></div>
+      <nav className="practice-navigation"><button className="practice-secondary" disabled={index === 0} onClick={() => setIndex((current) => Math.max(0, current - 1))}><Icon name="left" size={15}/> Previous</button><div className="practice-dots">{questions.map((question, questionIndex) => <button aria-label={`Go to question ${questionIndex + 1}`} aria-current={questionIndex === index ? 'step' : undefined} className={`${questionIndex === index ? 'is-current' : ''} ${hasAnsweredQuestion(question, questionIndex, answers, answerImages) ? 'is-answered' : ''}`} key={question.id || questionIndex} onClick={() => setIndex(questionIndex)}>{questionIndex + 1}</button>)}</div>{index < questions.length - 1 ? <button className="practice-primary" onClick={() => setIndex((current) => Math.min(questions.length - 1, current + 1))}>Next question <Icon name="right" size={15}/></button> : <button className="practice-primary" onClick={() => setFinished(true)}><Icon name="check" size={15}/> Finish session</button>}</nav>
     </>}
   </section>
 }

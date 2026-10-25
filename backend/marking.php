@@ -108,6 +108,7 @@ if (file_exists($API_KEY_FILE)) {
 
 $GROQ_API_KEY = getenv('GROQ_API_KEY') ?: (($GROQ_API_KEY ?? '') ?: \LastMinute\Config\Environment::get('GROQ_API_KEY', ''));
 $GROQ_MODEL   = getenv('GROQ_MODEL') ?: \LastMinute\Config\Environment::get('GROQ_MODEL', 'openai/gpt-oss-20b');
+$GROQ_VISION_MODEL = getenv('GROQ_VISION_MODEL') ?: \LastMinute\Config\Environment::get('GROQ_VISION_MODEL', 'qwen/qwen3.8-27b');
 
 if ($GROQ_API_KEY === '') {
     http_response_code(500);
@@ -162,6 +163,13 @@ foreach ($questions as $qIndex => $question) {
     $number = isset($question['number']) ? (string)$question['number'] : ((string)($qIndex + 1));
     $prompt = isset($question['prompt']) ? (string)$question['prompt'] : '';
     $answer = isset($question['answer']) ? (string)$question['answer'] : '';
+    $images = is_array($question['images'] ?? null) ? array_slice($question['images'], 0, 3) : [];
+    foreach ($images as $image) {
+        if (!is_string($image) || !preg_match('~^data:image/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$~', $image) || strlen($image) > 7 * 1024 * 1024) {
+            markingRespond(422, ['error' => 'An attached image is invalid or too large. Use JPG, PNG, or WebP images up to 5 MB each.']);
+        }
+    }
+    $questionModel = $images ? $GROQ_VISION_MODEL : $GROQ_MODEL;
     $maxMarks = isset($question['maxMarks']) ? (float)$question['maxMarks'] : 0;
     $questionKey = isset($question['id']) && is_scalar($question['id']) ? (string)$question['id'] : ('q-' . $qIndex);
     $systemPrompt = "You are an expert examiner marking student answers. Return ONLY valid JSON. " .
@@ -177,13 +185,16 @@ foreach ($questions as $qIndex => $question) {
 
     $userPrompt = "Paper: {$paperTitle}\nCourse: {$paperCourse}\nYear: {$paperYear}\n" .
         "Question {$number} (Max marks: {$maxMarks})\n\nQuestion/Marking guide:\n{$prompt}\n\n" .
-        "Student answer:\n{$answer}\n\nReturn JSON as specified.";
+        "Student answer:\n{$answer}\n\nIf images are attached, they show the student's workings or answer. Read any handwriting, diagrams, labels, and calculations carefully, and assess them as part of the answer. Return JSON as specified.";
+
+    $messageContent = [['type' => 'text', 'text' => $userPrompt]];
+    foreach ($images as $image) $messageContent[] = ['type' => 'image_url', 'image_url' => ['url' => $image]];
 
     $payload = [
-        'model' => $model,
+        'model' => $questionModel,
         'messages' => [
             ['role' => 'system', 'content' => $systemPrompt],
-            ['role' => 'user', 'content' => $userPrompt],
+            ['role' => 'user', 'content' => $images ? $messageContent : $userPrompt],
         ],
         'temperature' => 0.2,
         'top_p' => 0.9,
@@ -196,7 +207,7 @@ foreach ($questions as $qIndex => $question) {
         'paperTitle' => mb_substr($paperTitle, 0, 240), 'paperCourse' => mb_substr($paperCourse, 0, 160), 'paperYear' => mb_substr($paperYear, 0, 40),
         'sourceType' => $sourceType, 'groupId' => $groupId, 'groupName' => $groupName, 'discussionId' => $discussionId,
         'questionId' => mb_substr($questionKey, 0, 512), 'questionNumber' => mb_substr($number, 0, 100),
-        'prompt' => mb_substr($prompt, 0, 5000), 'answer' => $answer, 'maxMarks' => $maxMarks, 'model' => mb_substr($model, 0, 160),
+        'prompt' => mb_substr($prompt, 0, 5000), 'answer' => $answer, 'maxMarks' => $maxMarks, 'model' => mb_substr($questionModel, 0, 160),
     ]);
 
     $coinCharge = reserveMarkingCoins($pdo, (string)$user['id'], $coinCostPerQuestion);
@@ -277,5 +288,5 @@ echo json_encode([
     'totalPossible' => round($totalPossible, 2),
     'summary' => $totalPossible > 0 ? sprintf('Scored %.2f out of %.2f.', $totalScore, $totalPossible) : '',
     'results' => $results,
-    'model' => $decoded['model'] ?? $model,
+    'model' => $decoded['model'] ?? $questionModel,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
