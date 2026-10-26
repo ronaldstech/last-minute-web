@@ -1,3 +1,6 @@
+import { API_BASE_URL } from './apiConfig.js'
+import { setDocument } from './firestore.js'
+
 const firestoreBase = 'https://firestore.googleapis.com/v1/projects'
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID
 
@@ -57,7 +60,29 @@ function normalizeKind(kind) {
   return 'info'
 }
 
-export async function fetchNotifications(idToken, userId) {
+async function mysqlRequest(path, session, body) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: body ? 'POST' : 'GET',
+    headers: { Authorization: `Bearer ${session.token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(result.message || 'Could not complete the notification request.')
+  return result
+}
+
+export async function fetchNotifications(session, userId) {
+  if (session?.authProvider === 'php-mysql') {
+    const result = await mysqlRequest('/notifications', session)
+    return (result.notifications || []).map((notification) => ({
+      ...notification,
+      kind: normalizeKind(notification.kind),
+      createdAt: notification.createdAt ? new Date(notification.createdAt.replace?.(' ', 'T') || notification.createdAt) : null,
+      readBy: notification.read ? [userId] : [],
+      details: notification.details || {},
+    }))
+  }
+  const idToken = session?.idToken
   const url = `${documentsUrl()}/notifications?pageSize=50&orderBy=${encodeURIComponent('createdAt desc')}`
   const response = await fetch(url, { headers: authHeaders(idToken) })
   const result = await readResponse(response)
@@ -67,8 +92,13 @@ export async function fetchNotifications(idToken, userId) {
     .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
 }
 
-export async function markNotificationsRead(idToken, userId, notifications) {
+export async function markNotificationsRead(session, userId, notifications) {
   if (!notifications.length) return
+  if (session?.authProvider === 'php-mysql') {
+    await mysqlRequest('/notifications/read', session, { ids: notifications.map((notification) => notification.id) })
+    return
+  }
+  const idToken = session?.idToken
   const writes = notifications.map((notification) => ({
     transform: {
       document: `${documentsUrl()}/notifications/${encodeURIComponent(notification.id)}`,
@@ -84,4 +114,16 @@ export async function markNotificationsRead(idToken, userId, notifications) {
     body: JSON.stringify({ writes }),
   })
   await readResponse(response)
+}
+
+export async function createAdminNotification(session, notification) {
+  if (session?.authProvider === 'php-mysql') {
+    return mysqlRequest('/admin/notifications', session, notification)
+  }
+  const id = `admin-${crypto.randomUUID().replaceAll('-', '')}`
+  return setDocument(session.idToken, `notifications/${id}`, {
+    title: notification.title, body: notification.body, kind: notification.kind,
+    userId: notification.audience === 'all' ? 'all' : notification.userId,
+    createdBy: session.userId, createdAt: new Date(), readBy: [], details: {},
+  })
 }

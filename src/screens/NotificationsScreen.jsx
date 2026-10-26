@@ -74,22 +74,22 @@ export default function NotificationsScreen({ session, onUnreadCount, showNotice
     setLoading(true)
     setError('')
     try {
-      setNotifications(await fetchNotifications(session.idToken, userId))
+      setNotifications(await fetchNotifications(session, userId))
     } catch (loadError) {
       setError(loadError.message || 'Could not load notifications.')
     } finally {
       setLoading(false)
     }
-  }, [session.idToken, userId])
+  }, [session.authProvider, session.idToken, session.token, userId])
 
   useEffect(() => {
     let active = true
-    fetchNotifications(session.idToken, userId)
+    fetchNotifications(session, userId)
       .then((result) => { if (active) setNotifications(result) })
       .catch((loadError) => { if (active) setError(loadError.message || 'Could not load notifications.') })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [session.idToken, userId])
+  }, [session.authProvider, session.idToken, session.token, userId])
 
   const unread = useMemo(() => notifications.filter((notification) => !isRead(notification, userId)), [notifications, userId])
   const visibleNotifications = filter === 'unread' ? unread : notifications
@@ -98,7 +98,7 @@ export default function NotificationsScreen({ session, onUnreadCount, showNotice
 
   const markRead = async (notification) => {
     if (isRead(notification, userId)) return
-    await markNotificationsRead(session.idToken, userId, [notification])
+    await markNotificationsRead(session, userId, [notification])
     setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, readBy: [...new Set([...item.readBy, userId])] } : item))
   }
 
@@ -120,7 +120,7 @@ export default function NotificationsScreen({ session, onUnreadCount, showNotice
     if (!unread.length || busy) return
     setBusy(true)
     try {
-      await markNotificationsRead(session.idToken, userId, unread)
+      await markNotificationsRead(session, userId, unread)
       setNotifications((current) => current.map((notification) => ({ ...notification, readBy: [...new Set([...notification.readBy, userId])] })))
       showNotice('All notifications marked as read.')
     } catch (markError) {

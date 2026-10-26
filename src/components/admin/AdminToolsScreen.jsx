@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import Icon from '../Icon.jsx'
 import { giftAdminUserCoins, listAdminUsers } from '../../services/adminUsers.js'
-import { commitWrites, documentName, listCollectionPage, setDocument } from '../../services/firestore.js'
+import { commitWrites, documentName, listCollectionPage } from '../../services/firestore.js'
+import { createAdminNotification } from '../../services/notifications.js'
 import './AdminToolsScreen.css'
 
 const blankNotification = { title: '', body: '', kind: 'info', audience: 'all', userId: '' }
@@ -70,16 +71,10 @@ export default function AdminToolsScreen({ session, isSuperAdmin, showNotice, on
 
   const sendNotification = async (event) => {
     event.preventDefault()
-    if (isPhp) return setError('Notifications are currently connected to Firebase accounts. This MySQL account can still manage users and gift coins.')
     if (notification.audience === 'user' && !notification.userId) return setError('Choose a user for this notification.')
     setSending(true); setError('')
     try {
-      const id = `admin-${crypto.randomUUID().replaceAll('-', '')}`
-      await setDocument(session.idToken, `notifications/${id}`, {
-        title: notification.title.trim(), body: notification.body.trim(), kind: notification.kind,
-        userId: notification.audience === 'all' ? 'all' : notification.userId,
-        createdBy: session.userId, createdAt: new Date(), readBy: [], details: {},
-      })
+      await createAdminNotification(session, { ...notification, title: notification.title.trim(), body: notification.body.trim() })
       setNotification(blankNotification)
       showNotice(notification.audience === 'all' ? 'Announcement sent to all users.' : 'Notification sent.')
     } catch (sendError) { setError(sendError.message || 'Could not send this notification.') }
@@ -134,8 +129,7 @@ export default function AdminToolsScreen({ session, isSuperAdmin, showNotice, on
         <label>Notification type<select value={notification.kind} onChange={(event) => setNotification((current) => ({ ...current, kind: event.target.value }))}><option value="info">Information</option><option value="success">Good news</option><option value="warning">Important alert</option></select></label>
         <label>Title<input required maxLength={120} value={notification.title} onChange={(event) => setNotification((current) => ({ ...current, title: event.target.value }))} placeholder="A clear, short title"/></label>
         <label>Message<textarea required rows={4} maxLength={1200} value={notification.body} onChange={(event) => setNotification((current) => ({ ...current, body: event.target.value }))} placeholder="Write the message users will see"/><small>{notification.body.length}/1200</small></label>
-        <button className="admin-tool-primary" disabled={sending || (isPhp && !session.idToken)}><Icon name="right" size={15}/>{sending ? 'Sending…' : notification.audience === 'all' ? 'Send announcement' : 'Send notification'}</button>
-        {isPhp && <small className="admin-tool-note">Notification delivery is available for Firebase accounts. MySQL notification delivery needs a server endpoint.</small>}
+        <button className="admin-tool-primary" disabled={sending}><Icon name="right" size={15}/>{sending ? 'Sending…' : notification.audience === 'all' ? 'Send announcement' : 'Send notification'}</button>
       </form>
 
       <form className="admin-tool-card admin-coin-gift" onSubmit={giftCoins}>

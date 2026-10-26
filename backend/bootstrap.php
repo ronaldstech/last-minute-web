@@ -17,6 +17,7 @@ use LastMinute\Controllers\PracticeAnswerController;
 use LastMinute\Controllers\PaperReportController;
 use LastMinute\Controllers\WalletController;
 use LastMinute\Controllers\StudyGroupController;
+use LastMinute\Controllers\NotificationController;
 use LastMinute\Http\Request;
 use LastMinute\Middleware\Authenticate;
 use LastMinute\Repositories\SessionRepository;
@@ -55,6 +56,7 @@ function last_minute_router(): Router
     $userPapers = new UserPaperController(new \LastMinute\Repositories\UserPaperRepository($pdo), $authenticate, $configurationRepository);
     $practiceAnswers = new PracticeAnswerController(new \LastMinute\Repositories\PracticeAnswerRepository($pdo), $authenticate);
     $paperReports = new PaperReportController(new \LastMinute\Repositories\PaperReportRepository($pdo), $authenticate);
+    $notifications = new NotificationController(new \LastMinute\Repositories\NotificationRepository($pdo), $authenticate);
     // Load wallet classes only when a wallet route is called, so a partial
     // wallet deployment cannot take unrelated account and paper routes down.
     $walletEndpoint = static function (string $method) use ($pdo, $authenticate): callable {
@@ -75,6 +77,7 @@ function last_minute_router(): Router
     $router->add('GET', '/auth/me', [$controller, 'me']);
     $router->add('POST', '/auth/logout', [$controller, 'logout']);
     $router->add('GET', '/admin/users', [$adminUsers, 'index']);
+    $router->add('POST', '/admin/notifications', [$notifications, 'create']);
     $router->add('GET', '/admin/dashboard', [$adminDashboard, 'show']);
     $router->add('GET', '/admin/configuration', [$adminConfiguration, 'show']);
     $router->add('PATCH', '/admin/configuration', [$adminConfiguration, 'update']);
@@ -94,6 +97,8 @@ function last_minute_router(): Router
     $router->add('GET', '/admin/paper-reports', [$paperReports, 'index']);
     $router->add('PATCH', '/admin/paper-reports', [$paperReports, 'update']);
     $router->add('GET', '/papers', [$userPapers, 'index']);
+    $router->add('GET', '/notifications', [$notifications, 'index']);
+    $router->add('POST', '/notifications/read', [$notifications, 'markRead']);
     $router->add('GET', '/history', [$userPapers, 'history']);
     $router->add('GET', '/papers/detail', [$userPapers, 'show']);
     $router->add('POST', '/papers/saved', [$userPapers, 'save']);
