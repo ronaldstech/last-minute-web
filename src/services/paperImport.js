@@ -50,6 +50,7 @@ function normalizeQuestion(question, index) {
 function parseTextIntoQuestions(text) {
   const lines = text.replace(/\r/g, '').split('\n').map((line) => line.trim()).filter(Boolean)
   const questions = []
+  const preamble = []
   let active = null
   let activeSub = null
   let lastQuestionNumber = 0
@@ -105,6 +106,7 @@ function parseTextIntoQuestions(text) {
       active = { id: `q-${crypto.randomUUID()}`, number: header[1], order: questions.length + 1, type: 'structured', marks, content: title ? [{ type: 'paragraph', text: title }] : [], subquestions: [], assets: [], source_location: { page_start: 1, page_end: 1 }, paragraphs: [] }
       continue
     }
+    if (!active) preamble.push(line)
     const sub = /^\(?([a-h]|\d{1,2})\)?[).:]\s*(.*)$/i.exec(line)
     if (active && sub && !dottedAddress) {
       flushSub()
@@ -116,7 +118,7 @@ function parseTextIntoQuestions(text) {
   if (!questions.length && lines.length) {
     questions.push(normalizeQuestion({ number: '1', content: [{ type: 'paragraph', text: lines.join('\n') }], subquestions: [] }, 0))
   }
-  return questions
+  return { questions, instructions: questions.length > 1 || (questions.length === 1 && preamble.length < lines.length) ? preamble.join('\n').trim() : '' }
 }
 
 function splitMarks(text = '') {
@@ -130,7 +132,7 @@ function textImportPaper(text, fileName) {
   if (!text.trim()) throw new Error('No readable text was found in this file.')
   return {
     title: paperTitleFromFile(fileName), course: '', year: '', semester: '',
-    questions: parseTextIntoQuestions(text),
+    ...parseTextIntoQuestions(text),
   }
 }
 
@@ -139,15 +141,16 @@ function parseJsonPaper(source, fileName) {
   try { parsed = JSON.parse(source) } catch { throw new Error('This JSON file has a syntax error.') }
   const paper = Array.isArray(parsed) ? { questions: parsed } : (parsed.paper || parsed.examPaper || parsed)
   if (!paper || typeof paper !== 'object' || Array.isArray(paper)) throw new Error('JSON must contain a paper object or a questions array.')
-  let questions
-  if (Array.isArray(paper.questions)) questions = paper.questions.map(normalizeQuestion)
-  else if (typeof paper.text === 'string' || typeof paper.content === 'string') questions = parseTextIntoQuestions(paper.text || paper.content)
+  let extracted = { questions: [], instructions: '' }
+  if (Array.isArray(paper.questions)) extracted.questions = paper.questions.map(normalizeQuestion)
+  else if (typeof paper.text === 'string' || typeof paper.content === 'string') extracted = parseTextIntoQuestions(paper.text || paper.content)
   else throw new Error('No questions found. Add a "questions" array or a "text" field.')
-  if (!questions.length) throw new Error('The JSON paper has no questions to review.')
+  if (!extracted.questions.length) throw new Error('The JSON paper has no questions to review.')
   return {
     title: String(paper.title || paper.examType || paperTitleFromFile(fileName)),
     course: String(paper.course || ''), year: String(paper.year || ''), semester: String(paper.semester || ''),
-    questions,
+    instructions: String(paper.instructions || extracted.instructions || ''),
+    questions: extracted.questions,
   }
 }
 

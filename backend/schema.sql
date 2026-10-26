@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS papers (
   course VARCHAR(160) NOT NULL DEFAULT '',
   year VARCHAR(40) NOT NULL DEFAULT '',
   semester VARCHAR(40) NOT NULL DEFAULT '',
+  instructions TEXT NULL,
   department_id BIGINT UNSIGNED NULL,
   department_name VARCHAR(160) NULL,
   questions JSON NOT NULL,

@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import Icon from '../components/Icon.jsx'
 import ScreenHeader from '../components/ScreenHeader.jsx'
 import PaperReviewEditor from '../components/admin/PaperReviewEditor.jsx'
+import AdminToolsScreen from '../components/admin/AdminToolsScreen.jsx'
 import { giftAdminUserCoins, listAdminUsers, updateAdminUser } from '../services/adminUsers.js'
 import { getAdminConfiguration, saveAdminConfiguration } from '../services/adminConfiguration.js'
 import { createAcademicRecord, listAcademicRecords } from '../services/adminAcademics.js'
@@ -17,7 +18,7 @@ import { getAdminDashboardSummary } from '../services/adminDashboard.js'
 import './AdminScreen.css'
 
 const sections = [
-  ['dashboard', 'Dashboard', 'home'], ['users', 'Users', 'users'], ['groups', 'Study groups', 'users'], ['papers', 'Papers', 'file'],
+  ['dashboard', 'Dashboard', 'home'], ['tools', 'Admin tools', 'spark'], ['users', 'Users', 'users'], ['groups', 'Study groups', 'users'], ['papers', 'Papers', 'file'],
   ['accountHistory', 'Account analytics', 'clock'], ['transactions', 'Transactions', 'coins'],
   ['academics', 'Academic structure', 'book'], ['practice', 'Practice analytics', 'spark'],
   ['discussions', 'Group discussions', 'messages'], ['reports', 'Paper reports', 'bell'], ['settings', 'App configuration', 'sliders'],
@@ -501,7 +502,7 @@ export default function AdminScreen({ session, profile, onBack, onSessionExpired
     finally { setPaperEditorLoading(false) }
   }
 
-  const addPaper = () => openPaperReview({ title: '', course: '', year: '', semester: '', questions: [], createdAt: new Date() })
+  const addPaper = () => openPaperReview({ title: '', course: '', year: '', semester: '', instructions: '', questions: [], createdAt: new Date() })
 
   const handlePaperImport = async (event) => {
     const file = event.target.files?.[0]
@@ -530,6 +531,7 @@ export default function AdminScreen({ session, profile, onBack, onSessionExpired
       course: String(draft.course || ''),
       year: String(draft.year || ''),
       semester: String(draft.semester || ''),
+      instructions: String(draft.instructions || ''),
       departmentId: String(draft.departmentId || ''),
       departmentName: String(draft.departmentName || ''),
       programmeAssignments: Array.isArray(draft.programmeAssignments) ? draft.programmeAssignments : [],
@@ -593,12 +595,14 @@ export default function AdminScreen({ session, profile, onBack, onSessionExpired
           <div className="admin-stats-grid admin-dashboard-stats"><Stat label="Registered users" value={data?.users} icon="users"/><Stat label="Question papers" value={data?.papers} icon="file" tone="blue"/><Stat label="Study groups" value={data?.groups} icon="messages" tone="violet"/></div>
           <div className="admin-dashboard-section-heading"><div><span className="section-kicker">GET STARTED</span><h3>Quick access</h3><p>Jump straight to a section you manage often.</p></div></div>
           <div className="admin-dashboard-shortcuts">
+            <button type="button" onClick={() => navigateToSection('tools')}><span className="admin-dashboard-shortcut-icon violet"><Icon name="spark" size={18}/></span><span><strong>Admin tools</strong><small>Send updates and support users</small></span><Icon name="right" size={15}/></button>
             <button type="button" onClick={() => navigateToSection('users')}><span className="admin-dashboard-shortcut-icon blue"><Icon name="users" size={18}/></span><span><strong>Manage users</strong><small>Review accounts and access</small></span><Icon name="right" size={15}/></button>
             <button type="button" onClick={() => navigateToSection('papers')}><span className="admin-dashboard-shortcut-icon green"><Icon name="file" size={18}/></span><span><strong>Review papers</strong><small>Manage the question paper library</small></span><Icon name="right" size={15}/></button>
             <button type="button" onClick={() => navigateToSection('groups')}><span className="admin-dashboard-shortcut-icon violet"><Icon name="messages" size={18}/></span><span><strong>Study groups</strong><small>Browse groups and members</small></span><Icon name="right" size={15}/></button>
             <button type="button" onClick={() => navigateToSection('settings')}><span className="admin-dashboard-shortcut-icon gold"><Icon name="sliders" size={18}/></span><span><strong>App configuration</strong><small>Update platform settings</small></span><Icon name="right" size={15}/></button>
           </div>
         </section>}
+        {section === 'tools' && <AdminToolsScreen session={session} isSuperAdmin={isSuperAdmin} showNotice={showNotice} onNavigate={navigateToSection}/>}
         {section === 'users' && <><div className="admin-section-title"><div><span className="section-kicker">ACCOUNT MANAGEMENT</span><h2>Users <span className="admin-count">{Number(totalUserCount ?? visibleUsers.length).toLocaleString()} total</span></h2><p>Browse accounts in small batches. Select a row to review account details and actions.</p></div><label className="admin-search"><Icon name="search" size={16}/><input aria-label="Search loaded users" placeholder="Search loaded users..." value={search} onChange={(event) => { setSearch(event.target.value); setUserTablePage(0) }}/></label></div><div className="admin-table-wrap admin-users-table-wrap"><table className="admin-table admin-users-table"><thead><tr><th>User</th><th className="admin-user-responsive-phone">Phone</th><th className="admin-user-responsive-role">Role</th><th className="admin-user-responsive-verified">Phone verified</th><th>Free coins</th><th>Purchased coins</th><th className="admin-user-responsive-created">Joined</th><th>Status</th></tr></thead><tbody>{pageUsers.map((user) => <tr key={user.id} tabIndex={0} aria-haspopup="dialog" aria-label={`View ${user.username || user.email || 'user'} details`} onClick={() => { setSelectedUser(user); setUserGiftAmount('50') }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedUser(user); setUserGiftAmount('50') } }}><td><div className="admin-user-cell"><span>{(user.username || user.email || 'U').slice(0,1).toUpperCase()}</span><div><strong>{user.username || 'Student'}</strong><small>{user.email || user.id}</small></div></div></td><td className="admin-user-responsive-phone">{user.phoneNumber || '—'}</td><td className="admin-user-responsive-role"><span className={`admin-badge ${userIsAdmin(user) ? 'violet' : ''}`}>{userIsSuperAdmin(user) ? 'Super admin' : userIsAdmin(user) ? 'Admin' : 'Student'}</span></td><td className="admin-user-responsive-verified"><span className={`admin-badge ${user.phoneVerified ? 'success' : ''}`}>{user.phoneVerified ? 'Verified' : 'Not verified'}</span></td><td>{Number(user.freeCoinBalance || 0).toLocaleString()}</td><td>{Number(user.coinBalance || 0).toLocaleString()}</td><td className="admin-user-responsive-created">{valueLongDate(user.createdAt)}</td><td><span className={`admin-badge ${user.isSuspended ? 'danger' : 'success'}`}>{user.isSuspended ? 'Suspended' : 'Active'}</span></td></tr>)}</tbody></table>{!visibleUsers.length && <div className="admin-empty">No users match that search.</div>}</div><div className="admin-users-pagination"><span>Showing {usersPageFrom}–{usersPageTo} of {visibleUsers.length}{nextPageToken ? '+' : ''}</span><div><button type="button" onClick={() => setUserTablePage((page) => Math.max(0, page - 1))} disabled={userTablePage === 0 || loadingMore}>Previous</button><span>Page {userTablePage + 1}</span><button type="button" onClick={nextUserPage} disabled={!hasNextUserPage || loadingMore}>{loadingMore ? 'Loading…' : 'Next'}</button></div></div></>}
         {section === 'accountHistory' && <AccountHistoryAnalytics data={data} onRefresh={refresh}/>}
         {section === 'transactions' && (session.authProvider !== 'php-mysql' ? <div className="admin-empty">Transaction history is available for accounts using the MySQL backend.</div> : <>

@@ -106,11 +106,13 @@ final class AdminPaperController
         }
         try { $encodedQuestions = json_encode($questions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE); }
         catch (JsonException) { throw new ApiException('Paper questions contain invalid data.', 422); }
+        $instructions = $this->text($input['instructions'] ?? '', 'Paper instructions', 5000);
         return [
             'title' => $title,
             'course' => $this->text($input['course'] ?? '', 'Course', 160),
             'year' => $year,
             'semester' => $semester,
+            'instructions' => $instructions,
             'departmentId' => (string)$department['id'],
             'departmentName' => $department['name'],
             'questions' => $encodedQuestions,
