@@ -76,6 +76,7 @@ async function loadAdminData(section, token, pageToken = '', search = '', phpSes
       ? listAdminPaperReports(token, { cursor: pageToken })
       : listCollectionPage(token, 'paperReports', { orderBy: 'createdAt', descending: true, pageSize: 25, pageToken, fields: ['paperId', 'paperTitle', 'course', 'reporterId', 'reporterName', 'category', 'details', 'status', 'createdAt'] })
     case 'settings': return phpSession ? getAdminConfiguration(token) : (await getOptionalDocument(token, 'settings/appConfiguration')) || {}
+    case 'tools': return {}
     default: return null
   }
 }
@@ -341,7 +342,7 @@ export default function AdminScreen({ session, profile, onBack, onSessionExpired
       const resultData = paged ? result.documents : result
       const cursor = paged ? result.nextPageToken : ''
       if (active) {
-        sectionCache.current.set(section, { data: resultData, nextPageToken: cursor, totalCount: result.totalCount })
+        sectionCache.current.set(section, { data: resultData, nextPageToken: cursor, totalCount: result?.totalCount })
         setData(resultData)
         setNextPageToken(cursor)
         if (section === 'users' && paged) setTotalUserCount(result.totalCount)
