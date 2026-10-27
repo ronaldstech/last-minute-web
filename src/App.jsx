@@ -10,6 +10,7 @@ import PaperDetailScreen from './screens/PaperDetailScreen.jsx'
 import { submitPaperReport } from './services/paperReports.js'
 import NotificationsScreen from './screens/NotificationsScreen.jsx'
 import ProfileScreen from './screens/ProfileScreen.jsx'
+import SlidePracticeScreen from './screens/SlidePracticeScreen.jsx'
 import PapersScreen from './screens/PapersScreen.jsx'
 import MyPapersScreen from './screens/MyPapersScreen.jsx'
 import SavedScreen from './screens/SavedScreen.jsx'
@@ -27,11 +28,12 @@ const navItems = [
   { label: 'My papers', icon: 'book' },
   { label: 'Coins', icon: 'coins' },
   { label: 'Study groups', icon: 'users' },
+  { label: 'Slide practice', icon: 'spark' },
 ]
 
 const PAGE_STATE_KEY = 'last-minute-page-state'
 const THEME_STORAGE_KEY = 'last-minute-theme'
-const validTabs = new Set(['Home', 'Papers', 'My papers', 'Saved', 'Coins', 'Study groups', 'Notifications', 'Profile', 'History', 'Admin'])
+const validTabs = new Set(['Home', 'Papers', 'My papers', 'Saved', 'Coins', 'Study groups', 'Slide practice', 'Notifications', 'Profile', 'History', 'Admin'])
 
 function readTheme() {
   try { return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light' }
@@ -368,6 +370,8 @@ function App() {
         return <CoinsScreen profile={profile} balance={coinBalance} freeBalance={Number(profile?.freeCoinBalance || 0)} session={session} onProfileChange={setProfile} showNotice={showNotice} />
       case 'Study groups':
         return <GroupsScreen session={session} profile={profile} onOpenProfile={() => navigate('Profile')} showNotice={showNotice} />
+      case 'Slide practice':
+        return <SlidePracticeScreen session={session} />
       case 'Notifications':
         return <NotificationsScreen session={session} onUnreadCount={setUnreadNotifications} showNotice={showNotice} />
       case 'Profile':
