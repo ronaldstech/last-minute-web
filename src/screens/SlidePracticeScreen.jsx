@@ -42,18 +42,29 @@ function questionAnswered(question, index, answers) {
   return answers[index] !== undefined && String(answers[index]).trim() !== ''
 }
 
+function isCorrectAnswer(question, index, answers) {
+  if (question.type === 'multiple_choice') return Number(answers[index]) === Number(question.answerIndex)
+  if (question.type === 'true_false') return String(answers[index]) === String(Boolean(question.answer))
+  if (question.type === 'fill_blank') return normalizeAnswer(answers[index]) === normalizeAnswer(question.answer)
+  return false
+}
+
+function earnedQuestionMarks(question, index, answers, selfMarked) {
+  const marks = Number(question.marks || 1)
+  if (['multiple_choice', 'true_false', 'fill_blank'].includes(question.type)) return isCorrectAnswer(question, index, answers) ? marks : 0
+  if (question.type === 'matching') {
+    const pairs = question.pairs || []
+    const correct = pairs.filter((pair, pairIndex) => answers[`${index}-${pairIndex}`] === pair.right).length
+    return pairs.length ? marks * correct / pairs.length : 0
+  }
+  return question.type === 'structured' && selfMarked[index] ? marks : 0
+}
+
 function scorePaper(questions, answers, selfMarked) {
   return questions.reduce((score, question, index) => {
     const marks = Number(question.marks || 1)
     score.max += marks
-    if (question.type === 'multiple_choice' && Number(answers[index]) === Number(question.answerIndex)) score.earned += marks
-    else if (question.type === 'true_false' && String(answers[index]) === String(Boolean(question.answer))) score.earned += marks
-    else if (question.type === 'fill_blank' && normalizeAnswer(answers[index]) === normalizeAnswer(question.answer)) score.earned += marks
-    else if (question.type === 'matching') {
-      const pairs = question.pairs || []
-      const correct = pairs.filter((pair, pairIndex) => answers[`${index}-${pairIndex}`] === pair.right).length
-      score.earned += pairs.length ? marks * correct / pairs.length : 0
-    } else if (question.type === 'structured' && selfMarked[index]) score.earned += marks
+    score.earned += earnedQuestionMarks(question, index, answers, selfMarked)
     return score
   }, { earned: 0, max: 0 })
 }
@@ -163,12 +174,12 @@ export default function SlidePracticeScreen({ session, onProfileChange }) {
         const typedQuestions = questions.map((question, index) => ({ question, index })).filter(({ question }) => question.type === type)
         if (!typedQuestions.length) return null
         return <section className="slide-question-type-section" key={type}><h3>{heading}<span>{typedQuestions.length}</span></h3>{typedQuestions.map(({ question, index }) => <article className="slide-question-card" key={question.id || index}>
-        <div className="slide-question-label"><span>QUESTION {displayQuestionNumbers.get(index) || index + 1}</span><small>{heading.toUpperCase()} · {question.marks || 1} {(question.marks || 1) === 1 ? 'MARK' : 'MARKS'}</small></div>
+        <div className="slide-question-label"><span>QUESTION {displayQuestionNumbers.get(index) || index + 1}</span><small>{heading.toUpperCase()} · {question.marks || 1} {(question.marks || 1) === 1 ? 'MARK' : 'MARKS'}{submitted && <b className={`slide-earned-mark${earnedQuestionMarks(question, index, answers, selfMarked) === Number(question.marks || 1) ? ' correct' : earnedQuestionMarks(question, index, answers, selfMarked) ? ' partial' : ' incorrect'}`}>{earnedQuestionMarks(question, index, answers, selfMarked)}/{question.marks || 1}</b>}</small></div>
         <h3>{question.prompt}</h3>
-        {question.type === 'multiple_choice' && <div className="slide-choices">{(question.options || []).map((option, optionIndex) => <label key={optionIndex} className={answers[index] === optionIndex ? 'chosen' : ''}><input type="radio" name={`answer-${index}`} checked={answers[index] === optionIndex} disabled={submitted} onChange={() => setAnswers((current) => ({ ...current, [index]: optionIndex }))}/><span>{String.fromCharCode(65 + optionIndex)}.</span>{option}</label>)}</div>}
-        {(question.type === 'structured' || question.type === 'fill_blank') && <textarea className="slide-answer-input" aria-label={`Answer question ${question.number || index + 1}`} placeholder="Write your answer here…" value={answers[index] || ''} disabled={submitted} onChange={(event) => setAnswers((current) => ({ ...current, [index]: event.target.value }))}/>}
-        {question.type === 'true_false' && <div className="slide-choices">{['True', 'False'].map((option) => <label key={option} className={answers[index] === option ? 'chosen' : ''}><input type="radio" name={`answer-${index}`} checked={answers[index] === option} disabled={submitted} onChange={() => setAnswers((current) => ({ ...current, [index]: option }))}/>{option}</label>)}</div>}
-        {question.type === 'matching' && <div className="slide-matching-pairs">{(question.pairs || []).map((pair, pairIndex) => <label key={pairIndex}><span>{pair.left}</span><select aria-label={`Match ${pair.left}`} value={answers[`${index}-${pairIndex}`] || ''} disabled={submitted} onChange={(event) => setAnswers((current) => ({ ...current, [`${index}-${pairIndex}`]: event.target.value }))}><option value="">Choose a match</option>{(question.pairs || []).map((option) => option.right).sort((left, right) => left.localeCompare(right)).map((right) => <option key={right} value={right}>{right}</option>)}</select></label>)}</div>}
+        {question.type === 'multiple_choice' && <div className="slide-choices">{(question.options || []).map((option, optionIndex) => { const correctOption = optionIndex === Number(question.answerIndex); const selected = answers[index] === optionIndex; const stateClass = submitted ? correctOption ? 'is-correct' : selected ? 'is-incorrect' : '' : selected ? 'chosen' : ''; return <label key={optionIndex} className={stateClass}><input type="radio" name={`answer-${index}`} checked={selected} disabled={submitted} onChange={() => setAnswers((current) => ({ ...current, [index]: optionIndex }))}/><span>{String.fromCharCode(65 + optionIndex)}.</span>{option}</label> })}</div>}
+        {(question.type === 'structured' || question.type === 'fill_blank') && <textarea className={`slide-answer-input${submitted && question.type === 'fill_blank' ? isCorrectAnswer(question, index, answers) ? ' is-correct' : ' is-incorrect' : submitted && question.type === 'structured' && Object.hasOwn(selfMarked, index) ? selfMarked[index] ? ' is-correct' : ' is-incorrect' : ''}`} aria-label={`Answer question ${question.number || index + 1}`} placeholder="Write your answer here…" value={answers[index] || ''} disabled={submitted} onChange={(event) => setAnswers((current) => ({ ...current, [index]: event.target.value }))}/>}
+        {question.type === 'true_false' && <div className="slide-choices">{['True', 'False'].map((option) => { const correctOption = option === String(Boolean(question.answer)); const selected = answers[index] === option; const stateClass = submitted ? correctOption ? 'is-correct' : selected ? 'is-incorrect' : '' : selected ? 'chosen' : ''; return <label key={option} className={stateClass}><input type="radio" name={`answer-${index}`} checked={selected} disabled={submitted} onChange={() => setAnswers((current) => ({ ...current, [index]: option }))}/>{option}</label> })}</div>}
+        {question.type === 'matching' && <div className="slide-matching-pairs">{(question.pairs || []).map((pair, pairIndex) => { const value = answers[`${index}-${pairIndex}`] || ''; const stateClass = submitted ? value === pair.right ? 'is-correct' : 'is-incorrect' : ''; return <label key={pairIndex} className={stateClass}><span>{pair.left}</span><select className={stateClass} aria-label={`Match ${pair.left}`} value={value} disabled={submitted} onChange={(event) => setAnswers((current) => ({ ...current, [`${index}-${pairIndex}`]: event.target.value }))}><option value="">Choose a match</option>{(question.pairs || []).map((option) => option.right).sort((left, right) => left.localeCompare(right)).map((right) => <option key={right} value={right}>{right}</option>)}</select></label> })}</div>}
         {submitted && <div className="slide-model-answer"><strong>{question.type === 'multiple_choice' ? `Correct answer: ${String.fromCharCode(65 + Number(question.answerIndex || 0))}` : question.type === 'true_false' ? `Correct answer: ${question.answer ? 'True' : 'False'}` : question.type === 'matching' ? 'Suggested matches' : 'Suggested answer'}</strong><p>{question.type === 'multiple_choice' ? question.options?.[Number(question.answerIndex || 0)] : question.type === 'matching' ? (question.pairs || []).map((pair) => `${pair.left} — ${pair.right}`).join('; ') : question.type === 'true_false' ? question.explanation : question.answer}</p>{question.explanation && question.type !== 'true_false' && <small>{question.explanation}</small>}{question.type === 'structured' && <label className="slide-self-mark"><input type="checkbox" checked={Boolean(selfMarked[index])} onChange={(event) => setSelfMarked((current) => ({ ...current, [index]: event.target.checked }))}/> I earned these marks</label>}</div>}
       </article>)}</section>
       })}
