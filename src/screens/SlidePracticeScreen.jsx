@@ -75,6 +75,11 @@ export default function SlidePracticeScreen({ session, onProfileChange }) {
   const [generationCost, setGenerationCost] = useState(5)
   const [showSavedPapers, setShowSavedPapers] = useState(false)
 
+  const displayQuestionNumbers = new Map(questionSections.flatMap(([type]) => questions
+    .map((question, index) => ({ question, index }))
+    .filter(({ question }) => question.type === type))
+    .map(({ index }, order) => [index, order + 1]))
+
   useEffect(() => {
     let active = true
     listGeneratedSlidePapers(session?.token).then((result) => {
@@ -158,7 +163,7 @@ export default function SlidePracticeScreen({ session, onProfileChange }) {
         const typedQuestions = questions.map((question, index) => ({ question, index })).filter(({ question }) => question.type === type)
         if (!typedQuestions.length) return null
         return <section className="slide-question-type-section" key={type}><h3>{heading}<span>{typedQuestions.length}</span></h3>{typedQuestions.map(({ question, index }) => <article className="slide-question-card" key={question.id || index}>
-        <div className="slide-question-label"><span>QUESTION {question.number || index + 1}</span><small>{heading.toUpperCase()} · {question.marks || 1} {(question.marks || 1) === 1 ? 'MARK' : 'MARKS'}</small></div>
+        <div className="slide-question-label"><span>QUESTION {displayQuestionNumbers.get(index) || index + 1}</span><small>{heading.toUpperCase()} · {question.marks || 1} {(question.marks || 1) === 1 ? 'MARK' : 'MARKS'}</small></div>
         <h3>{question.prompt}</h3>
         {question.type === 'multiple_choice' && <div className="slide-choices">{(question.options || []).map((option, optionIndex) => <label key={optionIndex} className={answers[index] === optionIndex ? 'chosen' : ''}><input type="radio" name={`answer-${index}`} checked={answers[index] === optionIndex} disabled={submitted} onChange={() => setAnswers((current) => ({ ...current, [index]: optionIndex }))}/><span>{String.fromCharCode(65 + optionIndex)}.</span>{option}</label>)}</div>}
         {(question.type === 'structured' || question.type === 'fill_blank') && <textarea className="slide-answer-input" aria-label={`Answer question ${question.number || index + 1}`} placeholder="Write your answer here…" value={answers[index] || ''} disabled={submitted} onChange={(event) => setAnswers((current) => ({ ...current, [index]: event.target.value }))}/>}

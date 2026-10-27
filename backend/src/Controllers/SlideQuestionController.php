@@ -51,10 +51,10 @@ final class SlideQuestionController
                 'model' => $model,
                 'messages' => [
                     ['role' => 'system', 'content' => $system],
-                    ['role' => 'user', 'content' => "Resource title: {$title}\nCreate exactly {$needed} NEW questions. {$format}\nAssign an appropriate positive whole-number mark value to every question. Keep answers and explanations grounded in these notes.{$previousQuestions}\n\nSLIDE NOTES:\n{$text}"],
+                    ['role' => 'user', 'content' => "Resource title: {$title}\nCreate exactly {$needed} NEW questions. {$format}\nAssign an appropriate positive whole-number mark value to every question. Keep answers and explanations concise and grounded in these notes.{$previousQuestions}\n\nSLIDE NOTES:\n{$text}"],
                 ],
                 'temperature' => 0.35,
-                'max_tokens' => min(6000, max(1800, $needed * 320)),
+                'max_tokens' => min(8192, max(3500, $needed * 500)),
                 'response_format' => ['type' => 'json_object'],
             ];
             $curl = curl_init('https://api.groq.com/openai/v1/chat/completions');
@@ -79,8 +79,10 @@ final class SlideQuestionController
                 error_log('[slide-questions] Groq returned HTTP ' . $status . ': ' . ($decoded['error']['message'] ?? 'unknown error'));
                 throw new ApiException('The AI could not generate questions right now. Please try again.', 502);
             }
-            $generated = json_decode((string)($decoded['choices'][0]['message']['content'] ?? ''), true);
-            $questions = is_array($generated['questions'] ?? null) ? $generated['questions'] : [];
+            $content = $decoded['choices'][0]['message']['content'] ?? '';
+            if (is_array($content)) $content = implode("\n", array_map(static fn($part) => is_array($part) ? (string)($part['text'] ?? '') : (string)$part, $content));
+            $generated = json_decode((string)$content, true);
+            $questions = is_array($generated['questions'] ?? null) ? $generated['questions'] : (is_array($generated) && array_is_list($generated) ? $generated : []);
             foreach ($questions as $question) {
                 if (!is_array($question) || count($clean) >= $count) continue;
                 $item = $this->normalizeQuestion($question, $types, count($clean) + 1);
@@ -92,8 +94,16 @@ final class SlideQuestionController
                 }
             }
         }
-        if (count($clean) !== $count) throw new ApiException('The AI could not create the exact number of complete questions requested. Try again with more detailed notes.', 502);
-        foreach ($clean as $index => &$question) { $question['number'] = $index + 1; }
+        if (count($clean) !== $count) {
+            error_log(sprintf('[slide-questions] Generated %d of %d usable questions after retrying.', count($clean), $count));
+            throw new ApiException(sprintf('The AI returned %d of %d complete questions. Retry generation; no partial paper was saved.', count($clean), $count), 502);
+        }
+        $sectionOrder = array_flip(['multiple_choice', 'true_false', 'fill_blank', 'matching', 'structured']);
+        usort($clean, fn($left, $right) => ($sectionOrder[$left['type']] ?? 99) <=> ($sectionOrder[$right['type']] ?? 99));
+        foreach ($clean as $index => &$question) {
+            $question['number'] = $index + 1;
+            $question['id'] = 'generated-' . ($index + 1);
+        }
         unset($question);
         $isSuperAdmin = !empty($user['isSuperAdmin']);
         $cost = $isSuperAdmin ? 0 : (int)$this->configuration->get()['slideQuestionGenerationCost'];
@@ -104,10 +114,39 @@ final class SlideQuestionController
 
     private function normalizeQuestion(array $question, array $types, int $number): ?array
     {
-        $questionTypeValue = in_array(($question['type'] ?? ''), $types, true) ? $question['type'] : 'structured';
-        $prompt = trim((string)($question['prompt'] ?? ''));
-        $rawAnswer = $question['answer'] ?? null;
-        $answer = is_bool($rawAnswer) ? ($rawAnswer ? 'true' : 'false') : trim((string)$rawAnswer);
+        $rawType = strtolower(trim((string)($question['type'] ?? $question['questionType'] ?? 'structured')));
+        $rawType = str_replace(['-', ' ', '/'], '_', $rawType);
+        $questionTypeValue = match ($rawType) {
+            'mcq', 'multiplechoice', 'multiple_choice_question' => 'multiple_choice',
+            'tf', 'truefalse', 'true_or_false' => 'true_false',
+            'fill_in_blank', 'fill_in_the_blank', 'fillintheblank' => 'fill_blank',
+            'short_answer', 'shortanswer', 'essay', 'open_ended' => 'structured',
+            default => in_array($rawType, $types, true) ? $rawType : 'structured',
+        };
+        $prompt = trim((string)($question['prompt'] ?? $question['question'] ?? $question['text'] ?? $question['statement'] ?? ''));
+        $rawAnswer = $question['answer'] ?? $question['correctAnswer'] ?? $question['correct_answer'] ?? $question['solution'] ?? $question['modelAnswer'] ?? $question['isTrue'] ?? $question['correct'] ?? null;
+        $answer = is_bool($rawAnswer) ? ($rawAnswer ? 'true' : 'false') : (is_scalar($rawAnswer) ? trim((string)$rawAnswer) : '');
+        $rawOptions = $question['options'] ?? $question['choices'] ?? [];
+        if (is_array($rawOptions) && !array_is_list($rawOptions)) $rawOptions = array_values($rawOptions);
+        $options = is_array($rawOptions) ? array_values(array_filter(array_map(static function ($option): string {
+            if (is_array($option)) $option = $option['text'] ?? $option['option'] ?? $option['value'] ?? '';
+            return mb_substr(trim(is_scalar($option) ? (string)$option : ''), 0, 1000);
+        }, $rawOptions))) : [];
+        $hasZeroBasedIndex = array_key_exists('answerIndex', $question) || array_key_exists('answer_index', $question);
+        $rawIndex = $question['answerIndex'] ?? $question['answer_index'] ?? $question['correctIndex'] ?? $question['correctOptionIndex'] ?? null;
+        $answerIndex = is_numeric($rawIndex) ? (int)$rawIndex : -1;
+        if (!$hasZeroBasedIndex && $answerIndex >= 1 && $answerIndex <= 4) $answerIndex--;
+        if ($questionTypeValue === 'multiple_choice') {
+            if ($answerIndex < 0 && $answer !== '') {
+                $letter = strtoupper(trim($answer));
+                if (preg_match('/^(?:OPTION\s*)?([A-D])(?:[.)])?$/', $letter, $match)) $answerIndex = ord($match[1]) - ord('A');
+                else foreach ($options as $optionIndex => $option) if (mb_strtolower(trim($option)) === mb_strtolower(trim($answer))) { $answerIndex = $optionIndex; break; }
+            }
+            if ($answer === '' && isset($options[$answerIndex])) $answer = $options[$answerIndex];
+        }
+        if ($questionTypeValue === 'matching' && $answer === '' && is_array($question['pairs'] ?? null)) {
+            $answer = implode('; ', array_map(static fn($pair) => is_array($pair) ? (string)($pair['left'] ?? $pair[0] ?? '') . ' — ' . (string)($pair['right'] ?? $pair['match'] ?? $pair[1] ?? '') : '', $question['pairs']));
+        }
         if ($prompt === '' || $answer === '') return null;
         $marks = filter_var($question['marks'] ?? null, FILTER_VALIDATE_INT);
         if ($marks === false || $marks < 1 || $marks > 10) $marks = $questionTypeValue === 'matching' ? 4 : 1;
@@ -121,17 +160,16 @@ final class SlideQuestionController
             'explanation' => mb_substr(trim((string)($question['explanation'] ?? '')), 0, 2000),
         ];
         if ($questionTypeValue === 'multiple_choice') {
-            $options = array_values(array_filter(array_map(static fn($option) => mb_substr(trim((string)$option), 0, 1000), is_array($question['options'] ?? null) ? $question['options'] : [])));
-            if (count($options) !== 4) return null;
+            if (count($options) !== 4 || $answerIndex < 0 || $answerIndex > 3) return null;
             $item['options'] = $options;
-            $item['answerIndex'] = max(0, min(3, (int)($question['answerIndex'] ?? 0)));
+            $item['answerIndex'] = $answerIndex;
         } elseif ($questionTypeValue === 'true_false') {
-            $item['answer'] = filter_var($question['answer'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            $item['answer'] = filter_var($rawAnswer, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
             if ($item['answer'] === null) return null;
         } elseif ($questionTypeValue === 'matching') {
             $pairs = is_array($question['pairs'] ?? null) ? array_values($question['pairs']) : [];
             if (count($pairs) !== 4) return null;
-            $item['pairs'] = array_map(static fn($pair) => ['left' => mb_substr(trim((string)($pair['left'] ?? '')), 0, 500), 'right' => mb_substr(trim((string)($pair['right'] ?? '')), 0, 500)], $pairs);
+            $item['pairs'] = array_map(static fn($pair) => ['left' => mb_substr(trim((string)($pair['left'] ?? $pair['term'] ?? $pair[0] ?? '')), 0, 500), 'right' => mb_substr(trim((string)($pair['right'] ?? $pair['match'] ?? $pair['definition'] ?? $pair[1] ?? '')), 0, 500)], $pairs);
             if (count(array_filter($item['pairs'], static fn($pair) => $pair['left'] !== '' && $pair['right'] !== '')) !== 4) return null;
         }
         return $item;
