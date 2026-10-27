@@ -63,6 +63,7 @@ function App() {
   const [activeTab, setActiveTab] = useState(initialPage.activeTab)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [topProfileMenuOpen, setTopProfileMenuOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState(initialPage.query)
   const [notice, setNotice] = useState('')
   const noticeTimer = useRef(null)
@@ -85,6 +86,18 @@ function App() {
   }, [theme])
 
   const toggleTheme = () => setTheme((current) => current === 'dark' ? 'light' : 'dark')
+
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setMobileNavOpen(false) }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [mobileNavOpen])
 
   useEffect(() => {
     try {
@@ -376,9 +389,9 @@ function App() {
   }
 
   const navigation = (className) => (
-    <nav className={className} aria-label="Main navigation">
+    <nav id={className === 'side-nav' ? 'main-navigation' : undefined} className={className} aria-label="Main navigation">
       {navItems.map((item) => (
-        <button key={item.label} className={activeTab === item.label ? 'selected' : ''} onClick={() => navigate(item.label)}>
+        <button key={item.label} className={activeTab === item.label ? 'selected' : ''} onClick={() => { setMobileNavOpen(false); navigate(item.label) }}>
           <Icon name={item.icon} size={18} />
           <span>{item.label === 'Study groups' && className === 'mobile-nav' ? 'Groups' : item.label}</span>
         </button>
@@ -389,9 +402,9 @@ function App() {
   if (activeTab === 'Admin') return <main className="admin-standalone-shell"><AdminScreen session={session} profile={profile} onBack={() => navigate('Profile')} onSessionExpired={expireSession} showNotice={showNotice} />{notice && <div className="toast" role="status">{notice}</div>}</main>
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${mobileNavOpen ? ' mobile-menu-open' : ''}`}>
       <aside className="sidebar">
-        <a className="brand" href="#home" onClick={() => navigate('Home')}>
+        <a className="brand" href="#home" onClick={() => { setMobileNavOpen(false); navigate('Home') }}>
           <img src="/logo.png" alt="" />
           <span><strong>Last Minute</strong><small>EXAM PAPER LIBRARY</small></span>
         </a>
@@ -402,15 +415,16 @@ function App() {
           <div className="profile-menu-wrap"><button className="profile-row" aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((open) => !open)}><span className="avatar">{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</span><span><strong>{profile?.username || session.name || session.email || 'Student account'}</strong><small>Account menu</small></span><span className="more"><Icon name="more" size={18} /></span></button>{profileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'Saved' ? 'active' : ''} onClick={() => navigate('Saved')}><Icon name="bookmark" size={16}/> Saved papers</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div>
         </div>
       </aside>
+      {mobileNavOpen && <button type="button" className="mobile-menu-backdrop" aria-label="Close navigation menu" onClick={() => setMobileNavOpen(false)}/>}
 
       <main className="main-area" id="home">
         <header className="topbar">
+          <button type="button" className="mobile-menu-trigger" aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileNavOpen} aria-controls="main-navigation" onClick={() => setMobileNavOpen((open) => !open)}><Icon name={mobileNavOpen ? 'close' : 'menu'} size={19}/></button>
           <div className="breadcrumb">Study space <span>/</span> <strong>{selectedPaper ? 'Paper details' : activeTab}</strong></div>
           <div className="top-actions"><button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18}/></button><button className="icon-button" aria-label="Notifications" onClick={() => navigate('Notifications')}><Icon name="bell" size={18} />{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><div className="profile-menu-wrap top-profile-menu"><button className="top-avatar" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={topProfileMenuOpen} onClick={() => setTopProfileMenuOpen((open) => !open)}>{(profile?.username || session.name || session.email || 'S').slice(0, 1).toUpperCase()}</button>{topProfileMenuOpen && <div className="profile-dropdown" role="menu"><button role="menuitem" className={activeTab === 'Profile' ? 'active' : ''} onClick={() => navigate('Profile')}><Icon name="users" size={16}/> My profile</button><button role="menuitem" className={activeTab === 'Saved' ? 'active' : ''} onClick={() => navigate('Saved')}><Icon name="bookmark" size={16}/> Saved papers</button><button role="menuitem" className={activeTab === 'History' ? 'active' : ''} onClick={() => navigate('History')}><Icon name="clock" size={16}/> Account history</button><button role="menuitem" className="profile-logout-item" onClick={signOut}><Icon name="logout" size={16}/> Log out</button></div>}</div></div>
         </header>
         <div className="page-content">{renderScreen()}</div>
       </main>
-      {navigation('mobile-nav')}
       {notice && <div className="toast" role="status">{notice}</div>}
     </div>
   )

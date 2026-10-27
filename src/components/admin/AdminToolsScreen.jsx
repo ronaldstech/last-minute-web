@@ -68,6 +68,13 @@ export default function AdminToolsScreen({ session, isSuperAdmin, showNotice, on
   const toggleGiftRecipient = (user) => setGiftRecipients((current) => current.some((item) => String(item.id) === String(user.id))
     ? current.filter((item) => String(item.id) !== String(user.id))
     : [...current, user])
+  const visibleRecipientIds = new Set(visibleUsers.map((user) => String(user.id)))
+  const allVisibleRecipientsSelected = visibleUsers.length > 0 && visibleUsers.every((user) => giftRecipients.some((item) => String(item.id) === String(user.id)))
+  const toggleAllVisibleRecipients = () => setGiftRecipients((current) => {
+    if (allVisibleRecipientsSelected) return current.filter((user) => !visibleRecipientIds.has(String(user.id)))
+    const selectedIds = new Set(current.map((user) => String(user.id)))
+    return [...current, ...visibleUsers.filter((user) => !selectedIds.has(String(user.id)))]
+  })
 
   const sendNotification = async (event) => {
     event.preventDefault()
@@ -135,7 +142,7 @@ export default function AdminToolsScreen({ session, isSuperAdmin, showNotice, on
       <form className="admin-tool-card admin-coin-gift" onSubmit={giftCoins}>
         <div className="admin-tool-heading"><span className="admin-tool-icon gold"><Icon name="coins" size={18}/></span><div><span className="section-kicker">USER SUPPORT</span><h3>Gift free coins</h3><p>Add free coins directly to a user’s wallet.</p></div></div>
         <label>Search users<input placeholder="Name, email, or ID" value={search} onChange={(event) => setSearch(event.target.value)}/>{!isPhp && <small>Searches users already loaded. Load more to browse further.</small>}</label>
-        <fieldset className="admin-tool-recipient-picker"><legend>Choose recipients <span>{giftRecipients.length} selected</span></legend><div>{visibleUsers.map((user) => <label key={user.id}><input type="checkbox" checked={giftRecipients.some((item) => String(item.id) === String(user.id))} onChange={() => toggleGiftRecipient(user)}/><span><strong>{user.username || 'Student'}</strong><small>{user.email || `User ${user.id}`}</small></span><small>{Number(user.freeCoinBalance || 0).toLocaleString()} free</small></label>)}{loadingUsers && <small>Loading users…</small>}{!loadingUsers && !visibleUsers.length && <small>No matching users.</small>}</div>{nextUsersPage && <button className="admin-tool-load-more" type="button" onClick={() => void loadMoreUsers()} disabled={loadingUsers || loadingMoreUsers}>{loadingMoreUsers ? 'Loading more users…' : 'Load more users'}</button>}</fieldset>
+        <fieldset className="admin-tool-recipient-picker"><legend>Choose recipients <span>{giftRecipients.length} selected</span></legend><label className="admin-tool-recipient-select-all"><input type="checkbox" checked={allVisibleRecipientsSelected} disabled={!visibleUsers.length || loadingUsers} onChange={toggleAllVisibleRecipients}/><span>Select all shown users</span></label><div>{visibleUsers.map((user) => <label key={user.id}><input type="checkbox" checked={giftRecipients.some((item) => String(item.id) === String(user.id))} onChange={() => toggleGiftRecipient(user)}/><span><strong>{user.username || 'Student'}</strong><small>{user.email || `User ${user.id}`}</small></span><small>{Number(user.freeCoinBalance || 0).toLocaleString()} free</small></label>)}{loadingUsers && <small>Loading users…</small>}{!loadingUsers && !visibleUsers.length && <small>No matching users.</small>}</div>{nextUsersPage && <button className="admin-tool-load-more" type="button" onClick={() => void loadMoreUsers()} disabled={loadingUsers || loadingMoreUsers}>{loadingMoreUsers ? 'Loading more users…' : 'Load more users'}</button>}</fieldset>
         {giftRecipients.length > 0 && <div className="admin-tool-recipient-summary"><strong>{giftRecipients.length} recipient{giftRecipients.length === 1 ? '' : 's'}</strong><span>{giftRecipients.map((user) => user.username || user.email || user.id).join(', ')}</span><button type="button" onClick={() => setGiftRecipients([])}>Clear selection</button></div>}
         <label>Coin amount<input required type="number" min="1" max="100000" step="1" value={giftAmount} onChange={(event) => setGiftAmount(event.target.value)}/></label>
         <button className="admin-tool-primary gold-button" disabled={gifting || !giftRecipients.length || !isSuperAdmin}><Icon name="plus" size={15}/>{gifting ? `Adding coins to ${giftRecipients.length} users…` : `Gift coins to ${giftRecipients.length || 'selected'} users`}</button>
