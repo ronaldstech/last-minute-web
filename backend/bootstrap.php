@@ -57,7 +57,7 @@ function last_minute_router(): Router
     $practiceAnswers = new PracticeAnswerController(new \LastMinute\Repositories\PracticeAnswerRepository($pdo), $authenticate);
     $paperReports = new PaperReportController(new \LastMinute\Repositories\PaperReportRepository($pdo), $authenticate);
     $notifications = new NotificationController(new \LastMinute\Repositories\NotificationRepository($pdo), $authenticate);
-    $slideQuestions = new \LastMinute\Controllers\SlideQuestionController($authenticate);
+    $slideQuestions = new \LastMinute\Controllers\SlideQuestionController($authenticate, $pdo, $configurationRepository);
     // Load wallet classes only when a wallet route is called, so a partial
     // wallet deployment cannot take unrelated account and paper routes down.
     $walletEndpoint = static function (string $method) use ($pdo, $authenticate): callable {
@@ -100,6 +100,10 @@ function last_minute_router(): Router
     $router->add('GET', '/papers', [$userPapers, 'index']);
     $router->add('GET', '/notifications', [$notifications, 'index']);
     $router->add('POST', '/slide-questions/generate', [$slideQuestions, 'generate']);
+    $router->add('GET', '/slide-questions', [$slideQuestions, 'mine']);
+    $router->add('DELETE', '/slide-questions', [$slideQuestions, 'delete']);
+    $router->add('GET', '/admin/slide-questions', [$slideQuestions, 'adminIndex']);
+    $router->add('DELETE', '/admin/slide-questions', [$slideQuestions, 'delete']);
     $router->add('POST', '/notifications/read', [$notifications, 'markRead']);
     $router->add('GET', '/history', [$userPapers, 'history']);
     $router->add('GET', '/papers/detail', [$userPapers, 'show']);

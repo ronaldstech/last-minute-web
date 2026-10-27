@@ -371,7 +371,7 @@ function App() {
       case 'Study groups':
         return <GroupsScreen session={session} profile={profile} onOpenProfile={() => navigate('Profile')} showNotice={showNotice} />
       case 'Slide practice':
-        return <SlidePracticeScreen session={session} />
+        return <SlidePracticeScreen session={session} onProfileChange={setProfile} />
       case 'Notifications':
         return <NotificationsScreen session={session} onUnreadCount={setUnreadNotifications} showNotice={showNotice} />
       case 'Profile':

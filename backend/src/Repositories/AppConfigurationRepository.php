@@ -12,6 +12,7 @@ final class AppConfigurationRepository
         'updateEnabled' => false, 'updateMessage' => '', 'updateUrgent' => false,
         'paperUnlockDailyCost' => 20, 'paperUnlockWeeklyCost' => 100,
         'practiceMarkingCostPerQuestion' => 2, 'groupDiscussionMarkingCostPerResponse' => 4,
+        'slideQuestionGenerationCost' => 5,
     ];
 
     public function __construct(private readonly PDO $pdo) {}
@@ -27,7 +28,7 @@ final class AppConfigurationRepository
     public function save(array $configuration): array
     {
         $values = array_intersect_key($configuration, self::DEFAULTS);
-        foreach (['paperUnlockDailyCost', 'paperUnlockWeeklyCost', 'practiceMarkingCostPerQuestion', 'groupDiscussionMarkingCostPerResponse'] as $key) {
+        foreach (['paperUnlockDailyCost', 'paperUnlockWeeklyCost', 'practiceMarkingCostPerQuestion', 'groupDiscussionMarkingCostPerResponse', 'slideQuestionGenerationCost'] as $key) {
             $number = filter_var($values[$key] ?? null, FILTER_VALIDATE_INT);
             if ($number === false || $number < 0 || $number > 100000) throw new \InvalidArgumentException('Coin costs must be whole numbers from 0 to 100000.');
             $values[$key] = $number;
